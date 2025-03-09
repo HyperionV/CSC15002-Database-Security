@@ -95,6 +95,31 @@ BEGIN
 END;
 GO
 
+CREATE PROCEDURE SP_SEL_PUBLIC_NHANVIEN
+    @TENDN NVARCHAR(100), -- Tên đăng nhập
+    @MK NVARCHAR(100) -- Mật khẩu (khóa bí mật để giải mã lương)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Biến để lưu trữ mật khẩu đã mã hóa (SHA1)
+    DECLARE @MATKHAU_HASH VARBINARY(MAX);
+
+    -- Mã hóa mật khẩu đầu vào bằng SHA1 để so sánh với mật khẩu trong bảng
+    SET @MATKHAU_HASH = HASHBYTES('SHA1', @MK);
+
+    -- Truy vấn thông tin nhân viên và giải mã lương
+    SELECT 
+        MANV,
+        HOTEN,
+        EMAIL,
+        CONVERT(INT, DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), LUONG)) AS LUONGCB
+    FROM NHANVIEN
+    WHERE TENDN = @TENDN AND MATKHAU = @MATKHAU_HASH;
+END;
+GO
+
+
 -- Thêm dữ liệu vào bảng NHANVIEN bằng Stored Procedure
 EXEC SP_INS_PUBLIC_NHANVIEN
     @MANV = 'NV001',
@@ -124,3 +149,8 @@ SELECT
     TENDN,
     PUBKEY
 FROM NHANVIEN;
+
+-- Truy vấn thông tin nhân viên
+EXEC SP_SEL_PUBLIC_NHANVIEN
+    @TENDN = 'nva_user', -- Tên đăng nhập
+    @MK = 'password123'; -- Mật khẩu
