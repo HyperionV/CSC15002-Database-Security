@@ -120,15 +120,8 @@ EXEC SP_INS_PUBLIC_NHANVIEN 'NV01', 'NGUYEN VAN A',
 -- Xem thông tin bảng NHANVIEN sau khi thêm dữ liệu
 SELECT * FROM NHANVIEN;
 
--- Giải mã lương để xem thông tin
-SELECT 
-    MANV,
-    HOTEN,
-    EMAIL,
-    CONVERT(INT, DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), LUONG)) AS LUONG_GOC,
-    TENDN,
-    PUBKEY
-FROM NHANVIEN;
+EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12'
+
 
 USE QLSVNhom;
 GO
