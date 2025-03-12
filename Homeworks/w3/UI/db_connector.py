@@ -270,7 +270,27 @@ class DatabaseConnector:
             logger.info(f"params original: {params}")
             results = self.execute_sproc('SP_SEL_PUBLIC_NHANVIEN', params)
             logger.info(f"SP results: {results}")
-            if results and len(results) > 0:
+
+            # Handle the case where results is a boolean (True) instead of a list
+            if isinstance(results, bool):
+                # Try a direct query approach as fallback
+                query = """
+                SELECT MANV, HOTEN, EMAIL
+                FROM NHANVIEN
+                WHERE TENDN = ? AND MATKHAU = HASHBYTES('SHA1', ?)
+                """
+                direct_results = self.execute_query(
+                    query, (username, password))
+                if direct_results and len(direct_results) > 0:
+                    employee = direct_results[0]
+                    logger.info(
+                        f"Retrieved employee data (direct query fallback): {employee}")
+                    # Set a default LUONGCB value since we can't decrypt it this way
+                    employee['LUONGCB'] = 0
+                    return employee
+                return None
+
+            if results and isinstance(results, list) and len(results) > 0:
                 employee = results[0]
                 logger.info(
                     f"Retrieved employee data (original SP): {employee}")
@@ -569,28 +589,106 @@ class DatabaseConnector:
         result = self.execute_sproc('SP_UPD_BANGDIEM', params)
         return result is not None
 
-    def get_grades_by_student(self, masv: str) -> Optional[List[Dict]]:
-        """Get grades for a student."""
-        params = {'MASV': masv}
-        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MASV', params)
+    def get_grades_by_class(self, malop: str, manv: Optional[str] = None, password: Optional[str] = None) -> Optional[List[Dict]]:
+        """
+        Get grades for students in a class.
+
+        Args:
+            malop (str): Class ID
+            manv (Optional[str]): Employee ID for asymmetric key decryption
+            password (Optional[str]): Password for asymmetric key decryption
+
+        Returns:
+            Optional[List[Dict]]: List of grade records or None if error
+        """
+        # Import here to avoid circular import
+        from session import EmployeeSession
+
+        # Get employee session
+        employee_session = EmployeeSession()
+
+        # Use provided parameters or get from session
+        manv = manv or employee_session.employee_id
+        password = password or employee_session.password
+
+        # Check if we have the required parameters
+        if not manv or not password:
+            logger.error(
+                "Missing employee ID or password for grade decryption")
+            return None
+
+        # Set up parameters for stored procedure
+        params = {
+            'MALOP': malop,
+            'MANV': manv,
+            'MK': password
+        }
+
+        logger.info(f"Getting grades for class {malop} with employee {manv}")
+        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MALOP', params)
+
+        # Handle the case where results is a boolean (True) instead of a list
+        if isinstance(results, bool):
+            logger.warning(
+                "Stored procedure returned boolean instead of results")
+            return []
 
         # Handle NULL values from TRY_CAST
-        if results:
+        if results and isinstance(results, list):
             for result in results:
                 if 'DIEMTHI' in result and result['DIEMTHI'] is None:
-                    result['DIEMTHI'] = 0.0  # Default to 0.0 for NULL grades
+                    result['DIEMTHI'] = 0.0
 
         return results
 
-    def get_grades_by_class(self, malop: str) -> Optional[List[Dict]]:
-        """Get grades for students in a class."""
-        params = {'MALOP': malop}
-        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MALOP', params)
+    def get_grades_by_student(self, masv: str, manv: Optional[str] = None, password: Optional[str] = None) -> Optional[List[Dict]]:
+        """
+        Get grades for a student.
+
+        Args:
+            masv (str): Student ID
+            manv (Optional[str]): Employee ID for asymmetric key decryption
+            password (Optional[str]): Password for asymmetric key decryption
+
+        Returns:
+            Optional[List[Dict]]: List of grade records or None if error
+        """
+        # Import here to avoid circular import
+        from session import EmployeeSession
+
+        # Get employee session
+        employee_session = EmployeeSession()
+
+        # Use provided parameters or get from session
+        manv = manv or employee_session.employee_id
+        password = password or employee_session.password
+
+        # Check if we have the required parameters
+        if not manv or not password:
+            logger.error(
+                "Missing employee ID or password for grade decryption")
+            return None
+
+        # Set up parameters for stored procedure
+        params = {
+            'MASV': masv,
+            'MANV': manv,
+            'MK': password
+        }
+
+        logger.info(f"Getting grades for student {masv} with employee {manv}")
+        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MASV', params)
+
+        # Handle the case where results is a boolean (True) instead of a list
+        if isinstance(results, bool):
+            logger.warning(
+                "Stored procedure returned boolean instead of results")
+            return []
 
         # Handle NULL values from TRY_CAST
-        if results:
+        if results and isinstance(results, list):
             for result in results:
                 if 'DIEMTHI' in result and result['DIEMTHI'] is None:
-                    result['DIEMTHI'] = 0.0  
+                    result['DIEMTHI'] = 0.0  # Default to 0.0 for NULL grades
 
         return results

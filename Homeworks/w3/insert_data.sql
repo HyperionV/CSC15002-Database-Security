@@ -1,278 +1,97 @@
-USE QLSVNhom;
-GO
+-- Insert test data into LOP (5 rows)
+EXEC SP_INS_LOP 'L001', N'Công nghệ thông tin K42', 'NV001';
+EXEC SP_INS_LOP 'L002', N'Khoa học máy tính K42', 'NV001';
+EXEC SP_INS_LOP 'L003', N'Kỹ thuật phần mềm K42', 'NV001';
+EXEC SP_INS_LOP 'L004', N'An toàn thông tin K42', 'NV001';
+EXEC SP_INS_LOP 'L005', N'Hệ thống thông tin K42', 'NV001';
 
--- Insert data into NHANVIEN table (5 rows)
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV01', N'Nguyễn Văn An', 'nva@edu.vn', 5000000, 'nvan', 'pass123';
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV02', N'Trần Thị Bình', 'ttb@edu.vn', 4800000, 'ttbinh', 'pass456';
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV03', N'Lê Hoàng Cường', 'lhc@edu.vn', 5200000, 'lhcuong', 'pass789';
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV04', N'Phạm Minh Đức', 'pmd@edu.vn', 4700000, 'pmduc', 'pass321';
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV05', N'Hoàng Thị Lan', 'htl@edu.vn', 4900000, 'htlan', 'pass654';
+-- Insert test data into SINHVIEN (5 rows)
+EXEC SP_INS_SINHVIEN 'SV001', N'Trần Văn An', '2003-05-15', N'Hà Nội', 'L001', 'antv', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV002', N'Lê Thị Bình', '2003-08-22', N'Hải Phòng', 'L001', 'binhlt', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV003', N'Phạm Văn Cường', '2003-02-10', N'Đà Nẵng', 'L002', 'cuongpv', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV004', N'Nguyễn Thị Dung', '2003-11-05', N'TP. Hồ Chí Minh', 'L003', 'dungnt', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV005', N'Hoàng Văn Em', '2003-07-30', N'Cần Thơ', 'L004', 'emhv', 'sv123456';
 
--- Insert data into LOP table (16 rows)
-EXEC SP_INS_LOP 'L001', N'Công nghệ thông tin 1', 'NV01';
-EXEC SP_INS_LOP 'L002', N'Công nghệ thông tin 2', 'NV01';
-EXEC SP_INS_LOP 'L003', N'Kỹ thuật phần mềm 1', 'NV02';
-EXEC SP_INS_LOP 'L004', N'Kỹ thuật phần mềm 2', 'NV02';
-EXEC SP_INS_LOP 'L005', N'Hệ thống thông tin 1', 'NV03';
-EXEC SP_INS_LOP 'L006', N'Hệ thống thông tin 2', 'NV03';
-EXEC SP_INS_LOP 'L007', N'Khoa học máy tính 1', 'NV04';
-EXEC SP_INS_LOP 'L008', N'Khoa học máy tính 2', 'NV04';
-EXEC SP_INS_LOP 'L009', N'An toàn thông tin 1', 'NV05';
-EXEC SP_INS_LOP 'L010', N'An toàn thông tin 2', 'NV05';
-EXEC SP_INS_LOP 'L011', N'Mạng máy tính 1', 'NV01';
-EXEC SP_INS_LOP 'L012', N'Mạng máy tính 2', 'NV02';
-EXEC SP_INS_LOP 'L013', N'Trí tuệ nhân tạo 1', 'NV03';
-EXEC SP_INS_LOP 'L014', N'Trí tuệ nhân tạo 2', 'NV04';
-EXEC SP_INS_LOP 'L015', N'Thiết kế web 1', 'NV05';
-EXEC SP_INS_LOP 'L016', N'Thiết kế web 2', 'NV01';
+-- Insert test data into HOCPHAN (5 rows)
+EXEC SP_INS_HOCPHAN 'HP001', N'Cơ sở dữ liệu', 3;
+EXEC SP_INS_HOCPHAN 'HP002', N'Lập trình Java', 4;
+EXEC SP_INS_HOCPHAN 'HP003', N'An toàn mạng', 3;
+EXEC SP_INS_HOCPHAN 'HP004', N'Trí tuệ nhân tạo', 4;
+EXEC SP_INS_HOCPHAN 'HP005', N'Phân tích thiết kế hệ thống', 3;
 
--- Insert data into HOCPHAN table (16 rows)
-INSERT INTO HOCPHAN (MAHP, TENHP, SOTC) VALUES
-('HP001', N'Cơ sở dữ liệu', 3),
-('HP002', N'Lập trình cơ bản', 4),
-('HP003', N'Cấu trúc dữ liệu và giải thuật', 4),
-('HP004', N'Hệ điều hành', 3),
-('HP005', N'Mạng máy tính', 3),
-('HP006', N'Lập trình hướng đối tượng', 4),
-('HP007', N'Phân tích thiết kế hệ thống', 3),
-('HP008', N'Công nghệ phần mềm', 3),
-('HP009', N'Trí tuệ nhân tạo', 4),
-('HP010', N'An toàn thông tin', 3),
-('HP011', N'Lập trình web', 4),
-('HP012', N'Lập trình di động', 4),
-('HP013', N'Đồ họa máy tính', 3),
-('HP014', N'Quản trị mạng', 3),
-('HP015', N'Học máy', 4),
-('HP016', N'Xử lý ảnh', 3);
+-- Insert test data into BANGDIEM (5 rows)
+-- Using the employee's key to encrypt grades
+EXEC SP_INS_BANGDIEM 'SV001', 'HP001', 8.5, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV002', 'HP001', 7.5, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV003', 'HP002', 9.0, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV004', 'HP003', 8.0, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV005', 'HP004', 7.0, 'NV001';
 
--- Insert data into SINHVIEN table (20 rows)
-EXEC SP_INS_SINHVIEN 'SV0001', N'Nguyễn Văn Bình', '2000-01-15', N'Hà Nội', 'L001', 'nvbinh', 'sv123';
-EXEC SP_INS_SINHVIEN 'SV0002', N'Trần Thị Cẩm', '2000-02-20', N'Hải Phòng', 'L001', 'ttcam', 'sv234';
-EXEC SP_INS_SINHVIEN 'SV0003', N'Lê Hoàng Dũng', '2000-03-25', N'Đà Nẵng', 'L002', 'lhdung', 'sv345';
-EXEC SP_INS_SINHVIEN 'SV0004', N'Phạm Minh Đăng', '2000-04-10', N'TP HCM', 'L002', 'pmdang', 'sv456';
-EXEC SP_INS_SINHVIEN 'SV0005', N'Hoàng Thị Giang', '2000-05-05', N'Cần Thơ', 'L003', 'htgiang', 'sv567';
-EXEC SP_INS_SINHVIEN 'SV0006', N'Vũ Quang Hải', '2000-06-12', N'Huế', 'L003', 'vqhai', 'sv678';
-EXEC SP_INS_SINHVIEN 'SV0007', N'Đỗ Thị Hương', '2000-07-18', N'Quảng Ninh', 'L004', 'dthuong', 'sv789';
-EXEC SP_INS_SINHVIEN 'SV0008', N'Ngô Văn Khánh', '2000-08-22', N'Hải Dương', 'L004', 'nvkhanh', 'sv890';
-EXEC SP_INS_SINHVIEN 'SV0009', N'Bùi Thị Lan', '2000-09-30', N'Nam Định', 'L005', 'btlan', 'sv901';
-EXEC SP_INS_SINHVIEN 'SV0010', N'Trương Minh Long', '2000-10-05', N'Nghệ An', 'L005', 'tmlong', 'sv012';
-EXEC SP_INS_SINHVIEN 'SV0011', N'Lý Thị Mai', '2000-11-11', N'Thanh Hóa', 'L006', 'ltmai', 'sv123a';
-EXEC SP_INS_SINHVIEN 'SV0012', N'Phan Văn Nam', '2000-12-20', N'Hà Tĩnh', 'L006', 'pvnam', 'sv234b';
-EXEC SP_INS_SINHVIEN 'SV0013', N'Đặng Thị Oanh', '2001-01-25', N'Quảng Bình', 'L007', 'dtoanh', 'sv345c';
-EXEC SP_INS_SINHVIEN 'SV0014', N'Võ Minh Phúc', '2001-02-14', N'Quảng Trị', 'L007', 'vmphuc', 'sv456d';
-EXEC SP_INS_SINHVIEN 'SV0015', N'Dương Thị Quỳnh', '2001-03-08', N'Thừa Thiên Huế', 'L008', 'dtquynh', 'sv567e';
-EXEC SP_INS_SINHVIEN 'SV0016', N'Hồ Văn Sơn', '2001-04-17', N'Đà Nẵng', 'L008', 'hvson', 'sv678f';
-EXEC SP_INS_SINHVIEN 'SV0017', N'Lưu Thị Thảo', '2001-05-22', N'Quảng Nam', 'L009', 'ltthao', 'sv789g';
-EXEC SP_INS_SINHVIEN 'SV0018', N'Mai Văn Tuấn', '2001-06-30', N'Quảng Ngãi', 'L009', 'mvtuan', 'sv890h';
-EXEC SP_INS_SINHVIEN 'SV0019', N'Đinh Thị Uyên', '2001-07-12', N'Bình Định', 'L010', 'dtuyen', 'sv901i';
-EXEC SP_INS_SINHVIEN 'SV0020', N'Tạ Văn Vũ', '2001-08-19', N'Phú Yên', 'L010', 'tvvu', 'sv012j';
+-- Test retrieving data
+-- View all classes
+EXEC SP_SEL_LOP;
 
--- Adding more students to reach over 15 rows
-EXEC SP_INS_SINHVIEN 'SV0021', N'Nguyễn Thị Xuân', '2001-09-05', N'Khánh Hòa', 'L011', 'ntxuan', 'sv123k';
-EXEC SP_INS_SINHVIEN 'SV0022', N'Trần Văn Yên', '2001-10-10', N'Ninh Thuận', 'L011', 'tvyen', 'sv234l';
-EXEC SP_INS_SINHVIEN 'SV0023', N'Lê Thị Zung', '2001-11-15', N'Bình Thuận', 'L012', 'ltzung', 'sv345m';
-EXEC SP_INS_SINHVIEN 'SV0024', N'Phạm Văn Anh', '2001-12-20', N'Lâm Đồng', 'L012', 'pvanh', 'sv456n';
-EXEC SP_INS_SINHVIEN 'SV0025', N'Hoàng Thị Bảo', '2002-01-25', N'TP HCM', 'L013', 'htbao', 'sv567o';
-EXEC SP_INS_SINHVIEN 'SV0026', N'Vũ Văn Cường', '2002-02-28', N'Đồng Nai', 'L013', 'vvcuong', 'sv678p';
-EXEC SP_INS_SINHVIEN 'SV0027', N'Đỗ Thị Diệu', '2002-03-05', N'Bình Dương', 'L014', 'dtdieu', 'sv789q';
-EXEC SP_INS_SINHVIEN 'SV0028', N'Ngô Văn Em', '2002-04-10', N'Tây Ninh', 'L014', 'nvem', 'sv890r';
-EXEC SP_INS_SINHVIEN 'SV0029', N'Bùi Thị Phương', '2002-05-15', N'Bà Rịa - Vũng Tàu', 'L015', 'btphuong', 'sv901s';
-EXEC SP_INS_SINHVIEN 'SV0030', N'Trương Văn Giang', '2002-06-20', N'Long An', 'L015', 'tvgiang', 'sv012t';
+-- View students in class L001
+EXEC SP_SEL_SINHVIEN_BY_MALOP 'L001';
 
--- Insert data into BANGDIEM table (using SP_INS_BANGDIEM to encrypt the grades)
--- For each student, we'll add multiple course grades
+-- View grades for student SV001 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MASV 'SV001', 'NV001', 'abcd12';
 
--- Student SV0001
-EXEC SP_INS_BANGDIEM 'SV0001', 'HP001', 8.5, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0001', 'HP002', 7.8, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0001', 'HP003', 9.0, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0001', 'HP004', 8.2, 'NV01';
+-- View grades for course HP001 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MAHP 'HP001', 'NV001', 'abcd12';
 
--- Student SV0002
-EXEC SP_INS_BANGDIEM 'SV0002', 'HP001', 7.5, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0002', 'HP002', 8.8, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0002', 'HP003', 7.0, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0002', 'HP004', 8.7, 'NV01';
+-- View grades for class L001 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MALOP 'L001', 'NV001', 'abcd12';
 
--- Student SV0003
-EXEC SP_INS_BANGDIEM 'SV0003', 'HP001', 9.2, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0003', 'HP002', 8.5, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0003', 'HP003', 9.5, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0003', 'HP004', 7.8, 'NV01';
+-- Test employee authentication
+EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12';
 
--- Student SV0004
-EXEC SP_INS_BANGDIEM 'SV0004', 'HP001', 6.8, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0004', 'HP002', 7.2, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0004', 'HP003', 8.0, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0004', 'HP004', 7.5, 'NV01';
+EXEC SP_INS_PUBLIC_NHANVIEN 'NV002', N'Trần Thị Hương', 'huong@edu.vn', 9200000, 'huongtt', 'secure456';
 
--- Student SV0005
-EXEC SP_INS_BANGDIEM 'SV0005', 'HP005', 8.7, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0005', 'HP006', 9.3, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0005', 'HP007', 8.8, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0005', 'HP008', 9.0, 'NV02';
+-- Insert test data into LOP (5 rows)
+EXEC SP_INS_LOP 'L006', N'Công nghệ thông tin K43', 'NV002';
+EXEC SP_INS_LOP 'L007', N'Khoa học máy tính K43', 'NV002';
+EXEC SP_INS_LOP 'L008', N'Kỹ thuật phần mềm K43', 'NV002';
+EXEC SP_INS_LOP 'L009', N'An toàn thông tin K43', 'NV002';
+EXEC SP_INS_LOP 'L010', N'Hệ thống thông tin K43', 'NV002';
 
--- Student SV0006
-EXEC SP_INS_BANGDIEM 'SV0006', 'HP005', 7.8, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0006', 'HP006', 8.2, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0006', 'HP007', 7.5, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0006', 'HP008', 8.0, 'NV02';
+-- Insert test data into SINHVIEN (5 rows)
+EXEC SP_INS_SINHVIEN 'SV006', N'Lý Văn Minh', '2004-03-12', N'Hà Nội', 'L006', 'minhlv', 'sv789012';
+EXEC SP_INS_SINHVIEN 'SV007', N'Vũ Thị Ngọc', '2004-06-25', N'Bắc Ninh', 'L006', 'ngocvt', 'sv789012';
+EXEC SP_INS_SINHVIEN 'SV008', N'Đinh Văn Phúc', '2004-01-18', N'Thái Bình', 'L007', 'phucdv', 'sv789012';
+EXEC SP_INS_SINHVIEN 'SV009', N'Mai Thị Quỳnh', '2004-09-30', N'Nghệ An', 'L008', 'quynhmt', 'sv789012';
+EXEC SP_INS_SINHVIEN 'SV010', N'Trương Văn Sơn', '2004-04-05', N'Thanh Hóa', 'L009', 'sontv', 'sv789012';
 
--- Student SV0007
-EXEC SP_INS_BANGDIEM 'SV0007', 'HP005', 9.5, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0007', 'HP006', 9.0, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0007', 'HP007', 9.2, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0007', 'HP008', 8.7, 'NV02';
+-- Insert test data into HOCPHAN (5 rows)
+EXEC SP_INS_HOCPHAN 'HP006', N'Lập trình Web', 4;
+EXEC SP_INS_HOCPHAN 'HP007', N'Mạng máy tính', 3;
+EXEC SP_INS_HOCPHAN 'HP008', N'Hệ điều hành', 3;
+EXEC SP_INS_HOCPHAN 'HP009', N'Kiến trúc máy tính', 3;
+EXEC SP_INS_HOCPHAN 'HP010', N'Công nghệ blockchain', 2;
 
--- Student SV0008
-EXEC SP_INS_BANGDIEM 'SV0008', 'HP005', 6.5, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0008', 'HP006', 7.0, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0008', 'HP007', 7.2, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0008', 'HP008', 6.8, 'NV02';
+-- Insert test data into BANGDIEM (5 rows)
+-- Using the employee's key to encrypt grades
+EXEC SP_INS_BANGDIEM 'SV006', 'HP006', 8.2, 'NV002';
+EXEC SP_INS_BANGDIEM 'SV007', 'HP007', 7.8, 'NV002';
+EXEC SP_INS_BANGDIEM 'SV008', 'HP008', 9.3, 'NV002';
+EXEC SP_INS_BANGDIEM 'SV009', 'HP009', 6.5, 'NV002';
+EXEC SP_INS_BANGDIEM 'SV010', 'HP010', 8.7, 'NV002';
 
--- Student SV0009
-EXEC SP_INS_BANGDIEM 'SV0009', 'HP009', 8.3, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0009', 'HP010', 7.8, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0009', 'HP011', 8.5, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0009', 'HP012', 8.0, 'NV03';
+-- Test retrieving data
+-- View all classes
+EXEC SP_SEL_LOP;
 
--- Student SV0010
-EXEC SP_INS_BANGDIEM 'SV0010', 'HP009', 9.0, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0010', 'HP010', 8.7, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0010', 'HP011', 9.2, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0010', 'HP012', 8.8, 'NV03';
+-- View students in class L006
+EXEC SP_SEL_SINHVIEN_BY_MALOP 'L006';
 
--- Student SV0011
-EXEC SP_INS_BANGDIEM 'SV0011', 'HP009', 7.5, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0011', 'HP010', 7.0, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0011', 'HP011', 7.8, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0011', 'HP012', 7.2, 'NV03';
+-- View grades for student SV006 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MASV 'SV006', 'NV002', 'secure456';
 
--- Student SV0012
-EXEC SP_INS_BANGDIEM 'SV0012', 'HP009', 8.0, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0012', 'HP010', 8.2, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0012', 'HP011', 7.5, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0012', 'HP012', 8.5, 'NV03';
+-- View grades for course HP006 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MAHP 'HP006', 'NV002', 'secure456';
 
--- Student SV0013
-EXEC SP_INS_BANGDIEM 'SV0013', 'HP013', 9.0, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0013', 'HP014', 8.8, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0013', 'HP015', 9.5, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0013', 'HP016', 9.2, 'NV04';
+-- View grades for class L006 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MALOP 'L006', 'NV002', 'secure456';
 
--- Student SV0014
-EXEC SP_INS_BANGDIEM 'SV0014', 'HP013', 8.5, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0014', 'HP014', 8.0, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0014', 'HP015', 8.7, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0014', 'HP016', 8.3, 'NV04';
-
--- Student SV0015
-EXEC SP_INS_BANGDIEM 'SV0015', 'HP013', 7.8, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0015', 'HP014', 7.5, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0015', 'HP015', 8.0, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0015', 'HP016', 7.2, 'NV04';
-
--- Continue for the rest of the students to ensure we have more than 15 entries in BANGDIEM
--- Student SV0016
-EXEC SP_INS_BANGDIEM 'SV0016', 'HP001', 8.3, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0016', 'HP005', 7.9, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0016', 'HP009', 8.6, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0016', 'HP013', 8.1, 'NV05';
-
--- Student SV0017
-EXEC SP_INS_BANGDIEM 'SV0017', 'HP002', 9.1, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0017', 'HP006', 8.8, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0017', 'HP010', 9.3, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0017', 'HP014', 8.9, 'NV05';
-
--- Student SV0018
-EXEC SP_INS_BANGDIEM 'SV0018', 'HP003', 7.6, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0018', 'HP007', 7.1, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0018', 'HP011', 7.9, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0018', 'HP015', 7.3, 'NV05';
-
--- Student SV0019
-EXEC SP_INS_BANGDIEM 'SV0019', 'HP004', 8.1, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0019', 'HP008', 8.3, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0019', 'HP012', 7.6, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0019', 'HP016', 8.6, 'NV01';
-
--- Student SV0020
-EXEC SP_INS_BANGDIEM 'SV0020', 'HP001', 9.1, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0020', 'HP005', 8.9, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0020', 'HP009', 9.6, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0020', 'HP013', 9.3, 'NV02';
-
--- Student SV0021
-EXEC SP_INS_BANGDIEM 'SV0021', 'HP002', 8.6, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0021', 'HP006', 8.1, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0021', 'HP010', 8.8, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0021', 'HP014', 8.4, 'NV03';
-
--- Student SV0022
-EXEC SP_INS_BANGDIEM 'SV0022', 'HP003', 7.9, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0022', 'HP007', 7.6, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0022', 'HP011', 8.1, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0022', 'HP015', 7.3, 'NV04';
-
--- Student SV0023
-EXEC SP_INS_BANGDIEM 'SV0023', 'HP004', 8.4, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0023', 'HP008', 8.0, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0023', 'HP012', 8.7, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0023', 'HP016', 8.2, 'NV05';
-
--- Student SV0024
-EXEC SP_INS_BANGDIEM 'SV0024', 'HP001', 7.7, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0024', 'HP005', 7.3, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0024', 'HP009', 8.0, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0024', 'HP013', 7.4, 'NV01';
-
--- Student SV0025
-EXEC SP_INS_BANGDIEM 'SV0025', 'HP002', 8.9, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0025', 'HP006', 8.5, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0025', 'HP010', 9.2, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0025', 'HP014', 8.7, 'NV02';
-
--- Student SV0026
-EXEC SP_INS_BANGDIEM 'SV0026', 'HP003', 9.3, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0026', 'HP007', 9.0, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0026', 'HP011', 9.5, 'NV03';
-EXEC SP_INS_BANGDIEM 'SV0026', 'HP015', 9.1, 'NV03';
-
--- Student SV0027
-EXEC SP_INS_BANGDIEM 'SV0027', 'HP004', 7.0, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0027', 'HP008', 7.4, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0027', 'HP012', 6.8, 'NV04';
-EXEC SP_INS_BANGDIEM 'SV0027', 'HP016', 7.2, 'NV04';
-
--- Student SV0028
-EXEC SP_INS_BANGDIEM 'SV0028', 'HP001', 8.2, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0028', 'HP005', 7.8, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0028', 'HP009', 8.5, 'NV05';
-EXEC SP_INS_BANGDIEM 'SV0028', 'HP013', 8.0, 'NV05';
-
--- Student SV0029
-EXEC SP_INS_BANGDIEM 'SV0029', 'HP002', 9.4, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0029', 'HP006', 9.1, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0029', 'HP010', 9.7, 'NV01';
-EXEC SP_INS_BANGDIEM 'SV0029', 'HP014', 9.3, 'NV01';
-
--- Student SV0030
-EXEC SP_INS_BANGDIEM 'SV0030', 'HP003', 8.7, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0030', 'HP007', 8.3, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0030', 'HP011', 9.0, 'NV02';
-EXEC SP_INS_BANGDIEM 'SV0030', 'HP015', 8.5, 'NV02';
-
--- Print confirmation message
-PRINT 'Data insertion completed successfully!';
-
--- Verify data counts
-SELECT 'NHANVIEN' AS TableName, COUNT(*) AS Cnt FROM NHANVIEN
-UNION ALL
-SELECT 'LOP', COUNT(*) FROM LOP
-UNION ALL
-SELECT 'SINHVIEN', COUNT(*) FROM SINHVIEN
-UNION ALL
-SELECT 'HOCPHAN', COUNT(*) FROM HOCPHAN
-UNION ALL
-SELECT 'BANGDIEM', COUNT(*) FROM BANGDIEM;
+-- Test employee authentication
+EXEC SP_SEL_PUBLIC_NHANVIEN 'huongtt', 'secure456';

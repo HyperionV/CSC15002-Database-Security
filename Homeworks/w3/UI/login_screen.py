@@ -155,8 +155,8 @@ class LoginScreen(ttk.Frame):
             logger.info(f"Employee: {employee}")
 
             if employee:
-                # Login successful
-                self.employee_session.login(employee)
+                # Login successful - pass password to session for asymmetric key operations
+                self.employee_session.login(employee, password)
                 logger.info(f"Login successful for user: {username}")
 
                 # Show success message

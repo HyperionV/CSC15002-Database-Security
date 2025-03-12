@@ -1,4 +1,4 @@
-﻿USE MASTER;
+USE MASTER;
 GO
 
 ALTER DATABASE QLSVNhom SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
@@ -149,7 +149,7 @@ END;
 GO
 
 -- Thử nghiệm thêm nhân viên
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV01', 'NGUYEN VAN A',
+EXEC SP_INS_PUBLIC_NHANVIEN 'NV001', 'NGUYEN VAN A',
 'NVA@', 3000000, 'NVA', 'abcd12'
 
 -- Xem thông tin bảng NHANVIEN sau khi thêm dữ liệu
@@ -376,7 +376,7 @@ BEGIN
 END;
 GO
 
--- Procedure to update a grade with encryption
+-- Fix SP_UPD_BANGDIEM procedure
 CREATE OR ALTER PROCEDURE SP_UPD_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
@@ -400,7 +400,7 @@ BEGIN
 END;
 GO
 
--- Procedure to get grades for a student (decrypted)
+-- Step 5: Modify the SP_SEL_BANGDIEM_BY_MASV procedure to use the correct key for each grade
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MASV
     @MASV VARCHAR(20),
     @MANV VARCHAR(20),
@@ -409,24 +409,41 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    -- Get the student's class and the employee who manages that class
+    DECLARE @StudentClass VARCHAR(20);
+    DECLARE @StudentClassManager VARCHAR(20);
+    
+    SELECT @StudentClass = S.MALOP
+    FROM SINHVIEN S
+    WHERE S.MASV = @MASV;
+
+    SELECT @StudentClassManager = L.MANV
+    FROM LOP L
+    WHERE L.MALOP = @StudentClass;
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
-            ASYMKEY_ID(@MANV), 
-            BD.DIEMTHI,
-            @MK
-        ))) AS DIEMTHI
+        CASE 
+            WHEN @MANV = @StudentClassManager THEN
+                CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
+                    ASYMKEY_ID(@MANV), 
+                    BD.DIEMTHI,
+                    @MK
+                )))
+            ELSE NULL -- Cannot decrypt grades encrypted by other employees
+        END AS DIEMTHI,
+        @StudentClassManager AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
     WHERE BD.MASV = @MASV;
+
 END;
 GO
 
--- Procedure to get grades for a course (decrypted)
+-- Step 2: Modify the SP_SEL_BANGDIEM_BY_MAHP procedure to determine the encrypting employee based on class relationships
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MAHP
     @MAHP VARCHAR(20),
     @MANV VARCHAR(20),
@@ -440,19 +457,26 @@ BEGIN
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
-            ASYMKEY_ID(@MANV), 
-            BD.DIEMTHI,
-            @MK
-        ))) AS DIEMTHI
+        CASE 
+            -- Only decrypt if the current employee is the one who manages the student's class
+            WHEN L.MANV = @MANV THEN
+                CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
+                    ASYMKEY_ID(@MANV), 
+                    BD.DIEMTHI,
+                    @MK
+                )))
+            ELSE NULL -- Cannot decrypt grades encrypted by other employees
+        END AS DIEMTHI,
+        L.MANV AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
+    JOIN LOP L ON S.MALOP = L.MALOP
     WHERE BD.MAHP = @MAHP;
 END;
 GO
 
--- Procedure to get grades for students in a specific class (decrypted)
+-- Step 3: Modify the SP_SEL_BANGDIEM_BY_MALOP procedure to determine the encrypting employee based on class relationships
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MALOP
     @MALOP VARCHAR(20),
     @MANV VARCHAR(20),
@@ -461,16 +485,26 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    -- Get the employee who manages this class
+    DECLARE @ClassManager VARCHAR(20);
+    SELECT @ClassManager = MANV FROM LOP WHERE MALOP = @MALOP;
+    
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
-            ASYMKEY_ID(@MANV), 
-            BD.DIEMTHI,
-            @MK
-        ))) AS DIEMTHI
+        CASE 
+            -- Only decrypt if the current employee is the one who manages this class
+            WHEN @MANV = @ClassManager THEN
+                CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
+                    ASYMKEY_ID(@MANV), 
+                    BD.DIEMTHI,
+                    @MK
+                )))
+            ELSE NULL -- Cannot decrypt grades encrypted by other employees
+        END AS DIEMTHI,
+        @ClassManager AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
@@ -510,34 +544,6 @@ BEGIN
         SET @RESULT = 0
 END
 GO 
-
--- Add a procedure to authenticate employee
-CREATE OR ALTER PROCEDURE SP_AUTHENTICATE_EMPLOYEE
-    @TENDN NVARCHAR(100),
-    @MK NVARCHAR(50),
-    @AUTHENTICATED BIT OUTPUT,
-    @MANV VARCHAR(20) OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    IF EXISTS (
-        SELECT 1 
-        FROM NHANVIEN 
-        WHERE TENDN = @TENDN 
-        AND MATKHAU = HASHBYTES('SHA1', @MK)
-    )
-    BEGIN
-        SET @AUTHENTICATED = 1;
-        SELECT @MANV = MANV FROM NHANVIEN WHERE TENDN = @TENDN;
-    END
-    ELSE
-    BEGIN
-        SET @AUTHENTICATED = 0;
-        SET @MANV = NULL;
-    END
-END;
-GO
 
 -- Add a procedure to insert a course
 CREATE OR ALTER PROCEDURE SP_INS_HOCPHAN

@@ -21,17 +21,28 @@ class EmployeeSession:
         if not getattr(self, "_initialized", False):
             self._employee_data = None
             self._authenticated = False
+            self._password = None  # Add new attribute to store password
             self._initialized = True
             logger.info("Employee session initialized")
 
-    def login(self, employee_data: Dict[str, Any]) -> bool:
-        """Set the employee session data after successful authentication."""
+    def login(self, employee_data: Dict[str, Any], password: Optional[str] = None) -> bool:
+        """
+        Set the employee session data after successful authentication.
+
+        Args:
+            employee_data (Dict[str, Any]): Employee data from authentication
+            password (Optional[str]): Employee's password for asymmetric key operations
+
+        Returns:
+            bool: True if login successful, False otherwise
+        """
         if not employee_data or 'MANV' not in employee_data:
             logger.error("Invalid employee data provided for login")
             return False
 
         self._employee_data = employee_data
         self._authenticated = True
+        self._password = password  # Store password temporarily for decryption operations
         logger.info(
             f"Employee {employee_data.get('MANV')} logged in successfully")
         return True
@@ -40,6 +51,7 @@ class EmployeeSession:
         """Clear the session data on logout."""
         self._employee_data = None
         self._authenticated = False
+        self._password = None  # Clear password on logout
         logger.info("Employee logged out")
 
     @property
@@ -60,6 +72,11 @@ class EmployeeSession:
         if self.is_authenticated:
             return self._employee_data.get('HOTEN')
         return None
+
+    @property
+    def password(self) -> Optional[str]:
+        """Get the current employee password for asymmetric key operations."""
+        return self._password if self.is_authenticated else None
 
     @property
     def employee_data(self) -> Optional[Dict[str, Any]]:
