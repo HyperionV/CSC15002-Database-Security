@@ -5,7 +5,7 @@ from ttkthemes import ThemedTk
 
 from db_connector import DatabaseConnector
 from session import EmployeeSession
-from UI.login_screen import LoginScreen
+from login_screen import LoginScreen
 from class_management import ClassManagementScreen
 from student_management import StudentManagementScreen
 from grade_management import GradeManagementScreen
@@ -112,36 +112,39 @@ class Application:
 
     def _create_screen(self, name):
         """Create a screen if it doesn't exist."""
-        if name in self.screens:
+        if name in self.screens and self.screens[name] is not None:
             return
-
-        # Clear content frame
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
 
         # Create the requested screen
         if name == 'class':
             screen = ClassManagementScreen(self.content_frame)
             self.screens[name] = screen
+            screen.pack(fill=tk.BOTH, expand=True)
+            screen.pack_forget()  # Initially hidden
         elif name == 'student':
             screen = StudentManagementScreen(self.content_frame)
             self.screens[name] = screen
+            screen.pack(fill=tk.BOTH, expand=True)
+            screen.pack_forget()  # Initially hidden
         elif name == 'grade':
             screen = GradeManagementScreen(self.content_frame)
             self.screens[name] = screen
+            screen.pack(fill=tk.BOTH, expand=True)
+            screen.pack_forget()  # Initially hidden
 
     def _show_screen(self, name):
         """Show a specific screen and hide others."""
         # Create the screen if it doesn't exist
-        self._create_screen(name)
+        if name not in self.screens or self.screens[name] is None:
+            self._create_screen(name)
 
         # Hide all screens
         for screen_name, screen in self.screens.items():
-            if screen.winfo_ismapped():
+            if screen is not None:
                 screen.pack_forget()
 
         # Show the requested screen
-        if name in self.screens:
+        if name in self.screens and self.screens[name] is not None:
             self.screens[name].pack(fill=tk.BOTH, expand=True)
 
             # Update status bar
@@ -164,6 +167,9 @@ class Application:
             self.user_var.set(
                 f"Xin chào, {employee.get('HOTEN', 'Nhân viên')}")
 
+        # Initialize screens dictionary
+        self.screens = {}
+
         # Show the class management screen by default
         self._show_screen('class')
 
@@ -181,10 +187,18 @@ class Application:
             # Reset session
             self.session.logout()
 
-            # Clean up screens
+            # Hide all screens first
             for name, screen in self.screens.items():
-                screen.destroy()
+                if screen is not None:
+                    screen.pack_forget()
+
+            # Clear screens dictionary - don't destroy the widgets
             self.screens = {}
+
+            # Clear the content frame
+            for widget in self.content_frame.winfo_children():
+                if widget.winfo_exists():
+                    widget.destroy()
 
             # Show login screen
             self._show_login_screen()

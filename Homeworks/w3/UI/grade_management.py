@@ -22,7 +22,7 @@ class GradeForm(Form):
         self.db = DatabaseConnector()
 
         # Session manager
-        self.session = EmployeeSession()
+        self.employee_session = EmployeeSession()
 
         # Store class ID
         self.class_id = class_id
@@ -96,7 +96,7 @@ class GradeForm(Form):
 
         try:
             # Get the employee ID for encryption (public key)
-            manv = self.session.employee_id
+            manv = self.employee_session.employee_id
             if not manv:
                 MessageDisplay.show_error(
                     "Lỗi", "Không tìm thấy thông tin nhân viên đăng nhập")
@@ -144,21 +144,33 @@ class GradeManagementScreen(ttk.Frame):
 
     def __init__(self, master):
         super().__init__(master)
-        self.master = master
 
         # Database connection
         self.db = DatabaseConnector()
 
         # Session manager
-        self.session = EmployeeSession()
+        self.employee_session = EmployeeSession()
 
-        # Create main container
-        self.main_frame = ttk.Frame(self)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Create main container with padding
+        self.main_container = ttk.Frame(self)
+        self.main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Create frames for each view
-        self.classes_frame = ttk.Frame(self.main_frame)
-        self.grades_frame = ttk.Frame(self.main_frame)
+        # Create a header with title and back button
+        self.header_frame = ttk.Frame(self.main_container)
+        self.header_frame.pack(fill=tk.X, padx=5, pady=(0, 10))
+
+        self.title_label = ttk.Label(
+            self.header_frame, text="Quản lý Điểm", font=('Arial', 14, 'bold'))
+        self.title_label.pack(side=tk.LEFT)
+
+        self.back_button = ttk.Button(
+            self.header_frame, text="Quay lại", command=self.show_classes_view)
+        self.back_button.pack(side=tk.RIGHT)
+        self.back_button.pack_forget()  # Initially hidden
+
+        # Create content frame for both views
+        self.content_frame = ttk.Frame(self.main_container)
+        self.content_frame.pack(fill=tk.BOTH, expand=True)
 
         # Create the classes view
         self._create_classes_view()
@@ -170,7 +182,7 @@ class GradeManagementScreen(ttk.Frame):
         """Create the classes list view."""
         # Create a label for the list
         list_label = ttk.Label(
-            self.classes_frame, text="Lớp Học", font=('Helvetica', 14, 'bold'))
+            self.content_frame, text="Lớp Học", font=('Helvetica', 14, 'bold'))
         list_label.pack(anchor='w', pady=(0, 10))
 
         # Create class table
@@ -181,7 +193,7 @@ class GradeManagementScreen(ttk.Frame):
         ]
 
         self.class_table = DataTable(
-            self.classes_frame, columns, on_select=None)
+            self.content_frame, columns, on_select=None)
 
         # Hide CRUD buttons, keep only refresh
         self.class_table.add_button.pack_forget()
@@ -207,7 +219,7 @@ class GradeManagementScreen(ttk.Frame):
         """Refresh the class list."""
         try:
             # Get classes for the current employee
-            employee_id = self.session.employee_id
+            employee_id = self.employee_session.employee_id
             classes = self.db.get_classes_by_employee(employee_id)
 
             # Transform data for the table
@@ -237,7 +249,7 @@ class GradeManagementScreen(ttk.Frame):
             return
 
         # Check if employee can manage this class
-        employee_id = self.session.employee_id
+        employee_id = self.employee_session.employee_id
         has_permission = self.db.check_employee_manages_class(
             employee_id, selected_id)
 
@@ -255,11 +267,11 @@ class GradeManagementScreen(ttk.Frame):
     def _create_grades_view(self, class_id):
         """Create the grades view for a class."""
         # Clear any existing widgets
-        for widget in self.grades_frame.winfo_children():
+        for widget in self.content_frame.winfo_children():
             widget.destroy()
 
         # Create back button
-        back_button = ttk.Button(self.grades_frame, text="← Quay Lại Danh Sách Lớp",
+        back_button = ttk.Button(self.content_frame, text="Quay Lại Danh Sách Lớp",
                                  command=self.show_classes_view)
         back_button.pack(anchor='w', padx=10, pady=10)
 
@@ -274,11 +286,11 @@ class GradeManagementScreen(ttk.Frame):
 
         # Create title
         title_label = ttk.Label(
-            self.grades_frame, text=class_info, font=('Helvetica', 14, 'bold'))
+            self.content_frame, text=class_info, font=('Helvetica', 14, 'bold'))
         title_label.pack(anchor='w', padx=10, pady=(0, 10))
 
         # Create container for grades list and form
-        content_frame = ttk.Frame(self.grades_frame)
+        content_frame = ttk.Frame(self.content_frame)
         content_frame.pack(fill=tk.BOTH, expand=True)
 
         # Split into left and right panes
@@ -331,13 +343,26 @@ class GradeManagementScreen(ttk.Frame):
 
     def show_classes_view(self):
         """Show the classes view."""
-        self.grades_frame.pack_forget()
-        self.classes_frame.pack(fill=tk.BOTH, expand=True)
+        # Instead of destroying all widgets, which might affect other screens,
+        # just hide the current content frame and recreate our own classes view
+
+        # First hide the current content frame
+        self.content_frame.pack_forget()
+
+        # Create a new content frame
+        self.content_frame = ttk.Frame(self.main_container)
+        self.content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Recreate the classes view in the new frame
+        self._create_classes_view()
+
+        # Refresh the class data
+        self.refresh_classes()
 
     def show_grades_view(self):
         """Show the grades view."""
-        self.classes_frame.pack_forget()
-        self.grades_frame.pack(fill=tk.BOTH, expand=True)
+        self.content_frame.pack_forget()
+        self.content_frame.pack(fill=tk.BOTH, expand=True)
 
     def show_grade_form(self):
         """Show the grade form."""

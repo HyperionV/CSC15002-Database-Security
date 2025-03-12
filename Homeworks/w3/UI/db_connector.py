@@ -1,6 +1,7 @@
 import pyodbc
 import logging
 from typing import Optional, Dict, List, Any, Tuple, Union
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -83,68 +84,219 @@ class DatabaseConnector:
             self.conn.rollback()
             return None
 
-    def execute_sproc(self, sproc_name: str, params: Optional[Dict[str, Any]] = None) -> Optional[Union[List[Dict], Dict[str, Any]]]:
-        """Execute a stored procedure and return results."""
-        if not self.conn:
-            if not self.connect():
-                return None
-
+    def execute_sproc(self, sproc_name: str, params: Optional[Dict[str, Any]] = None) -> Optional[Union[List[Dict], Dict[str, Any], bool]]:
+        """Execute a stored procedure and return the results."""
         try:
-            cursor = self.conn.cursor()
+            # Connect to the database
+            conn = pyodbc.connect(self.get_connection_string())
+            cursor = conn.cursor()
 
-            # Build the stored procedure call
+            # Log the stored procedure call
+            logger.info(f"Executing stored procedure: {sproc_name}")
+            logger.info(f"Parameters: {params}")
+
+            # Handle parameters if provided
             if params:
-                # Create a parameter string like "@Param1=?, @Param2=?, ..."
-                param_string = ", ".join(
-                    [f"@{key}=?" for key in params.keys()])
-                call_string = f"{{CALL {sproc_name}({param_string})}}"
+                # Separate input and output parameters
+                input_params = {}
+                output_params = {}
 
-                # Execute with parameters
-                cursor.execute(call_string, list(params.values()))
+                for key, value in params.items():
+                    if value is None and key.startswith('@') is False and key.endswith('_OUTPUT') is False:
+                        # This is likely an output parameter
+                        output_params[key] = value
+                    else:
+                        input_params[key] = value
+
+                # Build parameter string for the SQL call
+                param_string = ""
+                param_values = []
+
+                # For pyodbc, we need to use a different approach for output parameters
+                if output_params:
+                    # Create a stored procedure call with both input and output parameters
+                    param_placeholders = []
+
+                    # Add input parameters
+                    for key in input_params:
+                        param_placeholders.append(f"@{key}=?")
+                        param_values.append(input_params[key])
+
+                    # Add output parameters
+                    for key in output_params:
+                        param_placeholders.append(f"@{key}=? OUTPUT")
+                        # Add a placeholder value for the output parameter
+                        param_values.append(None)
+
+                    param_string = ", ".join(param_placeholders)
+                else:
+                    # Only input parameters
+                    for key, value in input_params.items():
+                        param_string += f"@{key}=?, "
+                        param_values.append(value)
+
+                    # Remove trailing comma and space
+                    if param_string:
+                        param_string = param_string[:-2]
+
+                # Execute the stored procedure
+                call_string = f"EXEC {sproc_name} {param_string}"
+
+                logger.info(f"SQL to execute: {call_string}")
+                logger.info(f"Parameter values: {param_values}")
+
+                cursor.execute(call_string, param_values)
+
+                # For output parameters, we need to fetch them from the cursor
+                # This is a workaround since pyodbc doesn't directly support OUTPUT parameters
+                # We'll check if there are any results that might contain our output values
+                if output_params:
+                    # Try to get output parameters from result set
+                    # Some stored procedures return output parameters as a single-row result set
+                    if cursor.description:
+                        columns = [column[0] for column in cursor.description]
+                        row = cursor.fetchone()
+                        if row:
+                            # If we have output parameters in the result set
+                            for i, col_name in enumerate(columns):
+                                # Remove @ prefix if present
+                                clean_name = col_name.replace('@', '')
+                                if clean_name in output_params:
+                                    output_params[clean_name] = row[i]
             else:
                 # Execute without parameters
-                cursor.execute(f"{{CALL {sproc_name}}}")
+                cursor.execute(f"EXEC {sproc_name}")
 
-            # Check if the stored procedure returns results
+            # Check if the stored procedure returns result set
+            results = []
             if cursor.description:
                 columns = [column[0] for column in cursor.description]
-                results = []
-                for row in cursor.fetchall():
-                    results.append(dict(zip(columns, row)))
 
-                # Handle output parameters if any
-                output_params = {}
-                for i, key in enumerate(params.keys() if params else []):
-                    if cursor.description and i < len(cursor.description):
-                        param_name = cursor.description[i][0]
-                        if param_name.startswith('@'):
-                            output_params[param_name[1:]
-                                          ] = cursor.get_output_parameter_value(i)
+                # Log column information for debugging
+                column_info = []
+                for i, column in enumerate(cursor.description):
+                    col_name = column[0]
+                    col_type = type(column[1])
+                    col_size = column[2]
+                    col_precision = column[3]
+                    column_info.append(
+                        f"{col_name} (type: {col_type}, size: {col_size}, precision: {col_precision})")
+                logger.info(f"Result columns: {column_info}")
 
-                if output_params:
-                    return {'results': results, 'output_params': output_params}
+                # Fetch all rows
+                rows = cursor.fetchall()
+                for row in rows:
+                    result_dict = {}
+                    for i, value in enumerate(row):
+                        # Convert datetime objects to string for easier handling
+                        if isinstance(value, datetime):
+                            value = value.strftime('%Y-%m-%d %H:%M:%S')
+                        result_dict[columns[i]] = value
+                    results.append(result_dict)
+
+                logger.info(
+                    f"Stored procedure executed successfully. Result count: {len(results)}")
+
+                # Close cursor and connection
+                cursor.close()
+                conn.close()
+
+                # If we have output parameters, include them in the result
+                if 'output_params' in locals() and output_params:
+                    return {
+                        'results': results,
+                        'output_params': output_params
+                    }
                 return results
+            else:
+                # No result set, but might have output parameters
+                logger.info(
+                    "Stored procedure executed successfully. No result set.")
 
-            # For procedures that don't return results
-            self.conn.commit()
-            return []
+                # Commit the transaction for INSERT/UPDATE/DELETE operations
+                conn.commit()
 
-        except pyodbc.Error as e:
+                # Close cursor and connection
+                cursor.close()
+                conn.close()
+
+                # If we have output parameters, return them
+                if 'output_params' in locals() and output_params:
+                    return {
+                        'output_params': output_params
+                    }
+                # Return True instead of None to indicate success
+                return True
+
+        except Exception as e:
             logger.error(
-                f"Stored procedure execution error: {str(e)}, Procedure: {sproc_name}")
-            self.conn.rollback()
-            return None
+                f"Unexpected error executing stored procedure {sproc_name}: {str(e)}")
+            raise
 
     # Convenience methods for specific stored procedures
 
     def authenticate_employee(self, username: str, password: str) -> Optional[Dict]:
         """Authenticate an employee using the SP_SEL_PUBLIC_NHANVIEN stored procedure."""
-        params = {'TENDN': username, 'MK': password}
-        results = self.execute_sproc('SP_SEL_PUBLIC_NHANVIEN', params)
+        try:
+            # logger.info(f"Attempting authentication for user: {username}")
 
-        if results and len(results) > 0:
-            return results[0]  # Return the first employee record
-        return None
+            # # Try direct SQL approach instead of stored procedure
+            # direct_query = """
+            # SELECT
+            #     MANV,
+            #     HOTEN,
+            #     EMAIL,
+            #     DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), LUONG) AS DECRYPTED_BINARY
+            # FROM NHANVIEN
+            # WHERE TENDN = ? AND MATKHAU = HASHBYTES('SHA1', ?)
+            # """
+
+            # # Execute the direct SQL query
+            # direct_results = self.execute_query(
+            #     direct_query, (username, password))
+
+            # if direct_results and len(direct_results) > 0:
+            #     employee = direct_results[0]
+            #     logger.info(
+            #         f"Retrieved employee data (direct query): {employee}")
+
+            #     # Remove the binary data from results before returning
+            #     if 'DECRYPTED_BINARY' in employee:
+            #         del employee['DECRYPTED_BINARY']
+
+            #     return employee
+
+            params = {'TENDN': username, 'MK': password}
+            logger.info(f"params original: {params}")
+            results = self.execute_sproc('SP_SEL_PUBLIC_NHANVIEN', params)
+            logger.info(f"SP results: {results}")
+            if results and len(results) > 0:
+                employee = results[0]
+                logger.info(
+                    f"Retrieved employee data (original SP): {employee}")
+
+                # Handle the LUONGCB field
+                if 'LUONGCB' in employee:
+                    if employee['LUONGCB'] is None:
+                        employee['LUONGCB'] = 0
+                        logger.warning("LUONGCB is NULL, defaulted to 0")
+                    else:
+                        # Ensure it's an integer
+                        try:
+                            employee['LUONGCB'] = int(employee['LUONGCB'])
+                            logger.info(
+                                f"Successfully converted LUONGCB to int: {employee['LUONGCB']}")
+                            return employee
+                        except (ValueError, TypeError) as e:
+                            logger.error(
+                                f"Failed to convert LUONGCB to int: {employee['LUONGCB']}, error: {str(e)}")
+                else:
+                    logger.warning("LUONGCB field not found in results")
+
+            return None
+        except Exception as e:
+            logger.error(f"Error in authenticate_employee: {str(e)}")
+            return None
 
     def get_classes(self) -> Optional[List[Dict]]:
         """Get all classes using SP_SEL_LOP stored procedure."""
@@ -155,17 +307,168 @@ class DatabaseConnector:
         params = {'MANV': manv}
         return self.execute_sproc('SP_SEL_LOP_BY_MANV', params)
 
-    def add_class(self, malop: str, tenlop: str, manv: str) -> bool:
-        """Add a new class."""
+    def check_class_managed_by_employee(self, manv: str, malop: str) -> bool:
+        """Check if a class is already managed by the specified employee."""
+        if not manv or not malop:
+            return False
+
+        query = "SELECT 1 FROM LOP WHERE MANV = ? AND MALOP = ?"
+        results = self.execute_query(query, (manv, malop))
+        return results is not None and len(results) > 0
+
+    def add_class(self, malop: str, tenlop: str, manv: str):
+        """
+        Add a new class to the database.
+
+        Args:
+            malop (str): Class ID
+            tenlop (str): Class name
+            manv (str): Employee ID who manages the class
+
+        Returns:
+            bool: True if successful, False otherwise
+
+        Raises:
+            ValueError: If employee doesn't exist or class already exists
+        """
+        logger.info(f"Checking if employee {manv} exists")
+        if not self.check_employee_exists(manv):
+            logger.warning(f"Employee {manv} does not exist")
+            raise ValueError(
+                f"Nhân viên có mã {manv} không tồn tại trong hệ thống")
+
+        # Check if class already exists
+        logger.info(f"Checking if class {malop} exists")
+        if self.check_class_exists(malop):
+            logger.warning(f"Class {malop} already exists")
+            raise ValueError(f"Lớp có mã {malop} đã tồn tại trong hệ thống")
+
+        # Check if class is already managed by this employee
+        logger.info(f"Checking if class {malop} is managed by employee {manv}")
+        if self.check_class_managed_by_employee(malop, manv):
+            logger.warning(
+                f"Class {malop} is already managed by employee {manv}")
+            raise ValueError(
+                f"Lớp có mã {malop} đã được quản lý bởi nhân viên {manv}")
+
+        # All checks passed, proceed with adding the class
+        logger.info(f"All checks passed, adding class {malop}")
         params = {'MALOP': malop, 'TENLOP': tenlop, 'MANV': manv}
         result = self.execute_sproc('SP_INS_LOP', params)
-        return result is not None
+        logger.info(f"Add class result: {result}")
+        return result
 
-    def update_class(self, malop: str, tenlop: str, manv: str) -> bool:
-        """Update class information."""
+    def check_employee_exists(self, manv: str) -> bool:
+        """
+        Check if an employee exists in the database.
+
+        Args:
+            manv (str): Employee ID to check
+
+        Returns:
+            bool: True if employee exists, False otherwise
+        """
+        if not manv:
+            return False
+
+        try:
+            params = {'MANV': manv, 'RESULT': None}
+            result = self.execute_sproc('SP_CHECK_EMPLOYEE_EXISTS', params)
+
+            if isinstance(result, dict) and 'output_params' in result:
+                return bool(result['output_params'].get('RESULT', False))
+            return False
+        except Exception as e:
+            logger.error(f"Error checking if employee exists: {e}")
+            # Fallback to direct query if stored procedure fails
+            query = "SELECT 1 FROM NHANVIEN WHERE MANV = ?"
+            results = self.execute_query(query, (manv,))
+            return results is not None and len(results) > 0
+
+    def check_class_exists(self, malop: str) -> bool:
+        """
+        Check if a class exists in the database.
+
+        Args:
+            malop (str): Class ID to check
+
+        Returns:
+            bool: True if class exists, False otherwise
+        """
+        if not malop:
+            return False
+
+        try:
+            params = {'MALOP': malop, 'RESULT': None}
+            result = self.execute_sproc('SP_CHECK_CLASS_EXISTS', params)
+
+            if isinstance(result, dict) and 'output_params' in result:
+                return bool(result['output_params'].get('RESULT', False))
+            return False
+        except Exception as e:
+            logger.error(f"Error checking if class exists: {e}")
+            # Fallback to direct query if stored procedure fails
+            query = "SELECT 1 FROM LOP WHERE MALOP = ?"
+            results = self.execute_query(query, (malop,))
+            return results is not None and len(results) > 0
+
+    def check_class_managed_by_employee(self, malop: str, manv: str) -> bool:
+        """
+        Check if a class is already managed by the specified employee.
+
+        Args:
+            malop (str): Class ID to check
+            manv (str): Employee ID to check
+
+        Returns:
+            bool: True if class is managed by employee, False otherwise
+        """
+        if not malop or not manv:
+            return False
+
+        try:
+            params = {'MALOP': malop, 'MANV': manv, 'RESULT': None}
+            result = self.execute_sproc(
+                'SP_CHECK_CLASS_MANAGED_BY_EMPLOYEE', params)
+
+            if isinstance(result, dict) and 'output_params' in result:
+                return bool(result['output_params'].get('RESULT', False))
+            return False
+        except Exception as e:
+            logger.error(
+                f"Error checking if class is managed by employee: {e}")
+            # Fallback to direct query if stored procedure fails
+            query = "SELECT 1 FROM LOP WHERE MALOP = ? AND MANV = ?"
+            results = self.execute_query(query, (malop, manv))
+            return results is not None and len(results) > 0
+
+    def update_class(self, malop, tenlop, manv):
+        """
+        Update class information.
+
+        Args:
+            malop (str): Class ID to update
+            tenlop (str): New class name
+            manv (str): New employee ID who manages the class
+
+        Returns:
+            bool: True if successful, False otherwise
+
+        Raises:
+            ValueError: If employee doesn't exist or class doesn't exist
+        """
+        # Check if employee exists
+        if not self.check_employee_exists(manv):
+            raise ValueError(
+                f"Nhân viên có mã {manv} không tồn tại trong hệ thống")
+
+        # Check if class exists
+        if not self.check_class_exists(malop):
+            raise ValueError(f"Lớp có mã {malop} không tồn tại trong hệ thống")
+
+        # All checks passed, proceed with updating the class
         params = {'MALOP': malop, 'TENLOP': tenlop, 'MANV': manv}
-        result = self.execute_sproc('SP_UPD_LOP', params)
-        return result is not None
+        return self.execute_sproc('SP_UPD_LOP', params)
 
     def delete_class(self, malop: str) -> bool:
         """Delete a class."""
@@ -175,17 +478,40 @@ class DatabaseConnector:
 
     def check_employee_manages_class(self, manv: str, malop: str) -> bool:
         """Check if an employee manages a specific class."""
-        params = {'MANV': manv, 'MALOP': malop, 'IS_MANAGER': None}
-        result = self.execute_sproc('SP_CHECK_EMPLOYEE_MANAGES_CLASS', params)
+        try:
+            # Instead of relying on output parameters which are problematic with pyodbc,
+            # let's use a direct query approach
+            query = """
+            SELECT COUNT(*) AS is_manager 
+            FROM LOP 
+            WHERE MALOP = ? AND MANV = ?
+            """
+            result = self.execute_query(query, (malop, manv))
 
-        if isinstance(result, dict) and 'output_params' in result:
-            return bool(result['output_params'].get('IS_MANAGER'))
-        return False
+            if result and len(result) > 0:
+                return result[0]['is_manager'] > 0
+            return False
+        except Exception as e:
+            logger.error(f"Error checking if employee manages class: {str(e)}")
+            return False
 
     def get_students_by_class(self, malop: str) -> Optional[List[Dict]]:
         """Get students by class."""
         params = {'MALOP': malop}
         return self.execute_sproc('SP_SEL_SINHVIEN_BY_MALOP', params)
+
+    def get_student_by_id(self, masv: str) -> Optional[Dict]:
+        """Get a single student by ID."""
+        try:
+            params = {'MASV': masv}
+            result = self.execute_sproc('SP_SEL_SINHVIEN_BY_ID', params)
+
+            if result and len(result) > 0:
+                return result[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting student by ID: {e}")
+            return None
 
     def add_student(self, masv: str, hoten: str, ngaysinh: str, diachi: str,
                     malop: str, tendn: str, mk: str) -> bool:
@@ -246,9 +572,25 @@ class DatabaseConnector:
     def get_grades_by_student(self, masv: str) -> Optional[List[Dict]]:
         """Get grades for a student."""
         params = {'MASV': masv}
-        return self.execute_sproc('SP_SEL_BANGDIEM_BY_MASV', params)
+        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MASV', params)
+
+        # Handle NULL values from TRY_CAST
+        if results:
+            for result in results:
+                if 'DIEMTHI' in result and result['DIEMTHI'] is None:
+                    result['DIEMTHI'] = 0.0  # Default to 0.0 for NULL grades
+
+        return results
 
     def get_grades_by_class(self, malop: str) -> Optional[List[Dict]]:
         """Get grades for students in a class."""
         params = {'MALOP': malop}
-        return self.execute_sproc('SP_SEL_BANGDIEM_BY_MALOP', params)
+        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MALOP', params)
+
+        # Handle NULL values from TRY_CAST
+        if results:
+            for result in results:
+                if 'DIEMTHI' in result and result['DIEMTHI'] is None:
+                    result['DIEMTHI'] = 0.0  
+
+        return results

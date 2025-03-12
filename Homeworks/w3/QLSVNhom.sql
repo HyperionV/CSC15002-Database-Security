@@ -1,4 +1,13 @@
-﻿-- Tạo cơ sở dữ liệu QLSVNhom
+﻿USE MASTER;
+GO
+
+ALTER DATABASE QLSVNhom SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+GO
+
+DROP DATABASE IF EXISTS QLSVNhom;
+GO
+
+-- Tạo cơ sở dữ liệu QLSVNhom
 CREATE DATABASE QLSVNhom;
 GO
 
@@ -10,6 +19,7 @@ CREATE MASTER KEY ENCRYPTION BY PASSWORD = 'YourStrongPassword123!';
 GO
 
 -- Bảng Nhân viên 
+
 CREATE TABLE NHANVIEN (
     MANV VARCHAR(20) PRIMARY KEY,
     HOTEN NVARCHAR(100) NOT NULL,
@@ -59,76 +69,94 @@ CREATE TABLE BANGDIEM (
 
 GO
 
--- Tạo Asymmetric Key với thuật toán RSA_2048
-CREATE ASYMMETRIC KEY AsymKey_NhanVien
-WITH ALGORITHM = RSA_2048; -- Sử dụng thuật toán RSA với độ dài khóa 2048 bit
-GO
-
 -- Stored Procedure để chèn dữ liệu vào bảng NHANVIEN
-CREATE PROCEDURE SP_INS_PUBLIC_NHANVIEN
+CREATE OR ALTER PROCEDURE SP_INS_PUBLIC_NHANVIEN
     @MANV VARCHAR(20),
     @HOTEN NVARCHAR(100),
     @EMAIL VARCHAR(20),
     @LUONGCB INT,
     @TENDN NVARCHAR(100),
-    @MK NVARCHAR(100) -- Mật khẩu trước khi mã hóa
+    @MK NVARCHAR(50) -- Mật khẩu trước khi mã hóa
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE @MATKHAU VARBINARY(MAX);
     DECLARE @LUONG_ENCRYPTED VARBINARY(MAX);
-    DECLARE @PUBKEY VARCHAR(20);
-	DECLARE @LUONGCB_CONVERTED VARBINARY(MAX) = CONVERT(VARBINARY(MAX), @LUONGCB);
-
+    
     -- Mã hóa mật khẩu bằng SHA1
     SET @MATKHAU = HASHBYTES('SHA1', @MK);
-
-    -- Mã hóa lương bằng Asymmetric Key (RSA)
-    SET @LUONG_ENCRYPTED = ENCRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), @LUONGCB_CONVERTED);
-
-    -- Gán giá trị PUBKEY = MANV
-    SET @PUBKEY = @MANV;
-
+    
+    -- Tạo asymmetric key cho nhân viên này nếu chưa tồn tại
+    IF NOT EXISTS (SELECT * FROM sys.asymmetric_keys WHERE name = @MANV)
+    BEGIN
+        EXEC('CREATE ASYMMETRIC KEY [' + @MANV + '] 
+              WITH ALGORITHM = RSA_2048 
+              ENCRYPTION BY PASSWORD = ''' + @MK + '''');
+    END
+    
+    -- Mã hóa lương sử dụng public key của nhân viên
+    SET @LUONG_ENCRYPTED = ENCRYPTBYASYMKEY(
+        ASYMKEY_ID(@MANV), 
+        CONVERT(VARCHAR(20), @LUONGCB)
+    );
+    
     -- Chèn dữ liệu vào bảng NHANVIEN
     INSERT INTO NHANVIEN (MANV, HOTEN, EMAIL, LUONG, TENDN, MATKHAU, PUBKEY)
-    VALUES (@MANV, @HOTEN, @EMAIL, @LUONG_ENCRYPTED, @TENDN, @MATKHAU, @PUBKEY);
+    VALUES (@MANV, @HOTEN, @EMAIL, @LUONG_ENCRYPTED, @TENDN, @MATKHAU, @MANV);
 END;
 GO
 
-CREATE PROCEDURE SP_SEL_PUBLIC_NHANVIEN
+CREATE OR ALTER PROCEDURE SP_SEL_PUBLIC_NHANVIEN
     @TENDN NVARCHAR(100),
-    @MK NVARCHAR(100)
+    @MK NVARCHAR(50)
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT 
-        MANV,
-        HOTEN,
-        EMAIL,
-		CONVERT(INT, DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), LUONG)) AS LUONGCB
-    FROM NHANVIEN
-    WHERE TENDN = @TENDN
-      AND MATKHAU = HASHBYTES('SHA1', @MK); -- Verify password
+    -- Get the employee ID first
+    DECLARE @EmpManv VARCHAR(20);
+    
+    SELECT @EmpManv = MANV 
+    FROM NHANVIEN 
+    WHERE TENDN = @TENDN 
+      AND MATKHAU = HASHBYTES('SHA1', @MK);
+    
+    -- If employee found, proceed with decryption
+    IF @EmpManv IS NOT NULL
+    BEGIN
+        -- Get key ID directly
+        DECLARE @KeyID INT = ASYMKEY_ID(@EmpManv);
+        
+        -- Get employee info with decrypted salary
+        SELECT 
+            MANV,
+            HOTEN,
+            EMAIL,
+            CAST(
+                CAST(
+                    DECRYPTBYASYMKEY(
+                        @KeyID,
+                        LUONG, 
+                        @MK
+                    ) AS VARCHAR(20)
+                ) AS INT
+            ) AS LUONGCB
+        FROM NHANVIEN
+        WHERE MANV = @EmpManv;
+    END
 END;
 GO
 
+-- Thử nghiệm thêm nhân viên
 EXEC SP_INS_PUBLIC_NHANVIEN 'NV01', 'NGUYEN VAN A',
 'NVA@', 3000000, 'NVA', 'abcd12'
 
 -- Xem thông tin bảng NHANVIEN sau khi thêm dữ liệu
 SELECT * FROM NHANVIEN;
 
--- Giải mã lương để xem thông tin
-SELECT 
-    MANV,
-    HOTEN,
-    EMAIL,
-    CONVERT(INT, DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), LUONG)) AS LUONG_GOC,
-    TENDN,
-    PUBKEY
-FROM NHANVIEN;
+-- Truy vấn thông tin nhân viên với giải mã lương
+EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12'
 
 USE QLSVNhom;
 GO
@@ -293,6 +321,19 @@ BEGIN
 END;
 GO
 
+-- Procedure to get a student by ID
+CREATE OR ALTER PROCEDURE SP_SEL_SINHVIEN_BY_ID
+    @MASV VARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT MASV, HOTEN, NGAYSINH, DIACHI, MALOP, TENDN
+    FROM SINHVIEN
+    WHERE MASV = @MASV;
+END;
+GO
+
 -- Procedure to authenticate a student
 CREATE OR ALTER PROCEDURE SP_SEL_SINHVIEN_AUTH
     @TENDN NVARCHAR(100),
@@ -317,16 +358,18 @@ CREATE OR ALTER PROCEDURE SP_INS_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
     @DIEMTHI FLOAT,
-    @MANV VARCHAR(20) -- Public key for encryption
+    @MANV VARCHAR(20) -- Employee ID for key lookup
 AS
 BEGIN
     SET NOCOUNT ON;
     
-    DECLARE @DIEMTHI_VARBINARY VARBINARY(MAX) = CONVERT(VARBINARY(MAX), @DIEMTHI);
     DECLARE @DIEMTHI_ENCRYPTED VARBINARY(MAX);
     
-    -- Encrypt the grade using the employee's public key (MANV)
-    SET @DIEMTHI_ENCRYPTED = ENCRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), @DIEMTHI_VARBINARY);
+    -- Encrypt the grade using the employee's public key
+    SET @DIEMTHI_ENCRYPTED = ENCRYPTBYASYMKEY(
+        ASYMKEY_ID(@MANV), -- Get key ID from employee ID
+        CONVERT(VARCHAR(20), @DIEMTHI)
+    );
     
     INSERT INTO BANGDIEM (MASV, MAHP, DIEMTHI)
     VALUES (@MASV, @MAHP, @DIEMTHI_ENCRYPTED);
@@ -338,16 +381,18 @@ CREATE OR ALTER PROCEDURE SP_UPD_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
     @DIEMTHI FLOAT,
-    @MANV VARCHAR(20) -- Public key for encryption
+    @MANV VARCHAR(20) -- Employee ID for key lookup
 AS
 BEGIN
     SET NOCOUNT ON;
     
-    DECLARE @DIEMTHI_VARBINARY VARBINARY(MAX) = CONVERT(VARBINARY(MAX), @DIEMTHI);
     DECLARE @DIEMTHI_ENCRYPTED VARBINARY(MAX);
     
-    -- Encrypt the grade using the employee's public key (MANV)
-    SET @DIEMTHI_ENCRYPTED = ENCRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), @DIEMTHI_VARBINARY);
+    -- Encrypt the grade using the employee's public key
+    SET @DIEMTHI_ENCRYPTED = ENCRYPTBYASYMKEY(
+        ASYMKEY_ID(@MANV), -- Get key ID from employee ID
+        CONVERT(VARCHAR(20), @DIEMTHI)
+    );
     
     UPDATE BANGDIEM
     SET DIEMTHI = @DIEMTHI_ENCRYPTED
@@ -357,7 +402,9 @@ GO
 
 -- Procedure to get grades for a student (decrypted)
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MASV
-    @MASV VARCHAR(20)
+    @MASV VARCHAR(20),
+    @MANV VARCHAR(20),
+    @MK NVARCHAR(50)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -367,7 +414,11 @@ BEGIN
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CAST(CAST(DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), BD.DIEMTHI) AS VARCHAR) AS FLOAT) AS DIEMTHI
+        CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
+            ASYMKEY_ID(@MANV), 
+            BD.DIEMTHI,
+            @MK
+        ))) AS DIEMTHI
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
@@ -377,7 +428,9 @@ GO
 
 -- Procedure to get grades for a course (decrypted)
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MAHP
-    @MAHP VARCHAR(20)
+    @MAHP VARCHAR(20),
+    @MANV VARCHAR(20),
+    @MK NVARCHAR(50)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -387,7 +440,11 @@ BEGIN
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CAST(CAST(DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), BD.DIEMTHI) AS VARCHAR) AS FLOAT) AS DIEMTHI
+        CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
+            ASYMKEY_ID(@MANV), 
+            BD.DIEMTHI,
+            @MK
+        ))) AS DIEMTHI
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
@@ -397,7 +454,9 @@ GO
 
 -- Procedure to get grades for students in a specific class (decrypted)
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MALOP
-    @MALOP VARCHAR(20)
+    @MALOP VARCHAR(20),
+    @MANV VARCHAR(20),
+    @MK NVARCHAR(50)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -407,10 +466,90 @@ BEGIN
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CAST(CAST(DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), BD.DIEMTHI) AS VARCHAR) AS FLOAT) AS DIEMTHI
+        CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
+            ASYMKEY_ID(@MANV), 
+            BD.DIEMTHI,
+            @MK
+        ))) AS DIEMTHI
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
     WHERE S.MALOP = @MALOP;
 END;
+GO
+
+-- Check if an employee exists
+CREATE OR ALTER PROC SP_CHECK_EMPLOYEE_EXISTS @MANV VARCHAR(20), @RESULT BIT OUTPUT
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM NHANVIEN WHERE MANV = @MANV)
+        SET @RESULT = 1
+    ELSE
+        SET @RESULT = 0
+END
+GO
+
+-- Check if a class exists
+CREATE OR ALTER PROC SP_CHECK_CLASS_EXISTS @MALOP VARCHAR(20), @RESULT BIT OUTPUT
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM LOP WHERE MALOP = @MALOP)
+        SET @RESULT = 1
+    ELSE
+        SET @RESULT = 0
+END
+GO
+
+-- Check if a class is managed by a specific employee
+CREATE OR ALTER PROC SP_CHECK_CLASS_MANAGED_BY_EMPLOYEE @MALOP VARCHAR(20), @MANV VARCHAR(20), @RESULT BIT OUTPUT
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM LOP WHERE MALOP = @MALOP AND MANV = @MANV)
+        SET @RESULT = 1
+    ELSE
+        SET @RESULT = 0
+END
 GO 
+
+-- Add a procedure to authenticate employee
+CREATE OR ALTER PROCEDURE SP_AUTHENTICATE_EMPLOYEE
+    @TENDN NVARCHAR(100),
+    @MK NVARCHAR(50),
+    @AUTHENTICATED BIT OUTPUT,
+    @MANV VARCHAR(20) OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    IF EXISTS (
+        SELECT 1 
+        FROM NHANVIEN 
+        WHERE TENDN = @TENDN 
+        AND MATKHAU = HASHBYTES('SHA1', @MK)
+    )
+    BEGIN
+        SET @AUTHENTICATED = 1;
+        SELECT @MANV = MANV FROM NHANVIEN WHERE TENDN = @TENDN;
+    END
+    ELSE
+    BEGIN
+        SET @AUTHENTICATED = 0;
+        SET @MANV = NULL;
+    END
+END;
+GO
+
+-- Add a procedure to insert a course
+CREATE OR ALTER PROCEDURE SP_INS_HOCPHAN
+    @MAHP VARCHAR(20),
+    @TENHP NVARCHAR(100),
+    @SOTC INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    INSERT INTO HOCPHAN (MAHP, TENHP, SOTC)
+    VALUES (@MAHP, @TENHP, @SOTC);
+END;
+GO
+
