@@ -114,7 +114,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Get the employee ID first
     DECLARE @EmpManv VARCHAR(20);
     
     SELECT @EmpManv = MANV 
@@ -147,16 +146,6 @@ BEGIN
     END
 END;
 GO
-
--- Thử nghiệm thêm nhân viên
-EXEC SP_INS_PUBLIC_NHANVIEN 'NV001', 'NGUYEN VAN A',
-'NVA@', 3000000, 'NVA', 'abcd12'
-
--- Xem thông tin bảng NHANVIEN sau khi thêm dữ liệu
-SELECT * FROM NHANVIEN;
-
--- Truy vấn thông tin nhân viên với giải mã lương
-EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12'
 
 USE QLSVNhom;
 GO
@@ -376,7 +365,6 @@ BEGIN
 END;
 GO
 
--- Fix SP_UPD_BANGDIEM procedure
 CREATE OR ALTER PROCEDURE SP_UPD_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
@@ -400,7 +388,7 @@ BEGIN
 END;
 GO
 
--- Step 5: Modify the SP_SEL_BANGDIEM_BY_MASV procedure to use the correct key for each grade
+-- Modify the SP_SEL_BANGDIEM_BY_MASV procedure to use the correct key for each grade
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MASV
     @MASV VARCHAR(20),
     @MANV VARCHAR(20),
@@ -443,7 +431,7 @@ BEGIN
 END;
 GO
 
--- Step 2: Modify the SP_SEL_BANGDIEM_BY_MAHP procedure to determine the encrypting employee based on class relationships
+-- Modify the SP_SEL_BANGDIEM_BY_MAHP procedure to determine the encrypting employee based on class relationships
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MAHP
     @MAHP VARCHAR(20),
     @MANV VARCHAR(20),
@@ -476,7 +464,7 @@ BEGIN
 END;
 GO
 
--- Step 3: Modify the SP_SEL_BANGDIEM_BY_MALOP procedure to determine the encrypting employee based on class relationships
+-- Modify the SP_SEL_BANGDIEM_BY_MALOP procedure to determine the encrypting employee based on class relationships
 CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MALOP
     @MALOP VARCHAR(20),
     @MANV VARCHAR(20),
@@ -513,7 +501,7 @@ END;
 GO
 
 -- Check if an employee exists
-CREATE OR ALTER PROC SP_CHECK_EMPLOYEE_EXISTS @MANV VARCHAR(20), @RESULT BIT OUTPUT
+CREATE OR ALTER PROC SP_CHECK_EMPLOYEE @MANV VARCHAR(20), @RESULT BIT OUTPUT
 AS
 BEGIN
     IF EXISTS (SELECT 1 FROM NHANVIEN WHERE MANV = @MANV)
@@ -559,3 +547,71 @@ BEGIN
 END;
 GO
 
+
+-- ==============================
+-- Test data    
+-- ==============================   
+
+EXEC SP_INS_PUBLIC_NHANVIEN 'NV001', 'NGUYEN VAN A',
+'NVA@', 3000000, 'NVA', 'abcd12'
+
+SELECT * FROM NHANVIEN;
+
+EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12'
+
+
+EXEC SP_INS_LOP 'L001', N'Công nghệ thông tin K42', 'NV001';
+EXEC SP_INS_LOP 'L002', N'Khoa học máy tính K42', 'NV001';
+EXEC SP_INS_LOP 'L003', N'Kỹ thuật phần mềm K42', 'NV001';
+EXEC SP_INS_LOP 'L004', N'An toàn thông tin K42', 'NV001';
+EXEC SP_INS_LOP 'L005', N'Hệ thống thông tin K42', 'NV001';
+
+-- Insert test data into SINHVIEN (5 rows)
+EXEC SP_INS_SINHVIEN 'SV001', N'Trần Văn An', '2003-05-15', N'Hà Nội', 'L001', 'antv', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV002', N'Lê Thị Bình', '2003-08-22', N'Hải Phòng', 'L001', 'binhlt', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV003', N'Phạm Văn Cường', '2003-02-10', N'Đà Nẵng', 'L002', 'cuongpv', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV004', N'Nguyễn Thị Dung', '2003-11-05', N'TP. Hồ Chí Minh', 'L003', 'dungnt', 'sv123456';
+EXEC SP_INS_SINHVIEN 'SV005', N'Hoàng Văn Em', '2003-07-30', N'Cần Thơ', 'L004', 'emhv', 'sv123456';
+
+-- Insert test data into HOCPHAN (5 rows)
+EXEC SP_INS_HOCPHAN 'HP001', N'Cơ sở dữ liệu', 3;
+EXEC SP_INS_HOCPHAN 'HP002', N'Lập trình Java', 4;
+EXEC SP_INS_HOCPHAN 'HP003', N'An toàn mạng', 3;
+EXEC SP_INS_HOCPHAN 'HP004', N'Trí tuệ nhân tạo', 4;
+EXEC SP_INS_HOCPHAN 'HP005', N'Phân tích thiết kế hệ thống', 3;
+
+-- Insert test data into BANGDIEM (5 rows)
+-- Using the employee's key to encrypt grades
+EXEC SP_INS_BANGDIEM 'SV001', 'HP001', 8.5, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV002', 'HP001', 7.5, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV003', 'HP002', 9.0, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV004', 'HP003', 8.0, 'NV001';
+EXEC SP_INS_BANGDIEM 'SV005', 'HP004', 7.0, 'NV001';
+
+-- ==============================
+SELECT * FROM NHANVIEN;
+SELECT * FROM LOP;
+SELECT * FROM SINHVIEN;
+SELECT * FROM HOCPHAN;
+SELECT * FROM BANGDIEM;
+
+-- Test retrieving data
+-- View all classes
+EXEC SP_SEL_LOP;
+
+-- View students in class L001
+EXEC SP_SEL_SINHVIEN_BY_MALOP 'L001';
+
+-- View grades for student SV001 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MASV 'SV001', 'NV001', 'abcd12';
+
+-- View grades for course HP001 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MAHP 'HP001', 'NV001', 'abcd12';
+
+-- View grades for class L001 (requires employee credentials)
+EXEC SP_SEL_BANGDIEM_BY_MALOP 'L001', 'NV001', 'abcd12';
+
+-- Test employee authentication
+EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12';
+
+EXEC SP_INS_PUBLIC_NHANVIEN 'NV002', N'Trần Thị Hương', 'huong@edu.vn', 9200000, 'huongtt', 'secure456';
