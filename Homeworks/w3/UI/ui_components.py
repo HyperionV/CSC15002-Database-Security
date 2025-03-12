@@ -164,11 +164,11 @@ class ComboBoxField(FormField):
 
         # Store the value-display mapping
         self.values = values
-        self.value_map = {value: display for value, display in values}
-        self.display_map = {display: value for value, display in values}
+        self.display_map = {display: value for display, value in values}
+        self.value_map = {value: display for display, value in values}
 
         # Get only display values for the dropdown
-        display_values = [display for _, display in values]
+        display_values = [display for display, _ in values]
 
         # Create combobox with display values
         self.value_var = tk.StringVar()
@@ -182,7 +182,7 @@ class ComboBoxField(FormField):
     def get_value(self) -> str:
         """Get the selected value (not display text)."""
         display_text = self.value_var.get()
-        return self.value_map.get(display_text, '')
+        return self.display_map.get(display_text, '')
 
     def get_display_value(self) -> str:
         """Get the display text."""
@@ -200,7 +200,9 @@ class ComboBoxField(FormField):
         self.values = values
         self.display_values = [display for display,
                                _ in values] if values else []
-        self.value_map = {display: value for display,
+        self.display_map = {display: value for display,
+                            value in values} if values else {}
+        self.value_map = {value: display for display,
                           value in values} if values else {}
         self.combobox['values'] = self.display_values
 
