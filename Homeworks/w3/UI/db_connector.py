@@ -392,18 +392,29 @@ class DatabaseConnector:
             return False
 
         try:
+            # First try with stored procedure
             params = {'MANV': manv, 'RESULT': None}
-            result = self.execute_sproc('SP_CHECK_EMPLOYEE_EXISTS', params)
+            result = self.execute_sproc('SP_CHECK_EMPLOYEE', params)
 
             if isinstance(result, dict) and 'output_params' in result:
-                return bool(result['output_params'].get('RESULT', False))
+                return bool(result['output_params'].get('RESULT', True))
+
+            # If result is not a dictionary with output_params, it might be a direct result
+            # or the stored procedure might have failed silently
             return False
+
         except Exception as e:
             logger.error(f"Error checking if employee exists: {e}")
-            # Fallback to direct query if stored procedure fails
-            query = "SELECT 1 FROM NHANVIEN WHERE MANV = ?"
-            results = self.execute_query(query, (manv,))
-            return results is not None and len(results) > 0
+            # Try one more time with a simpler query as last resort
+            try:
+                query = "SELECT 1 FROM NHANVIEN WHERE MANV = ?"
+                cursor = self.conn.cursor()
+                cursor.execute(query, (manv,))
+                row = cursor.fetchone()
+                return row is not None
+            except Exception as inner_e:
+                logger.error(f"Final fallback query failed: {inner_e}")
+                return False
 
     def check_class_exists(self, malop: str) -> bool:
         """
