@@ -327,14 +327,36 @@ class DatabaseConnector:
         params = {'MANV': manv}
         return self.execute_sproc('SP_SEL_LOP_BY_MANV', params)
 
-    def check_class_managed_by_employee(self, manv: str, malop: str) -> bool:
-        """Check if a class is already managed by the specified employee."""
-        if not manv or not malop:
+    def check_class_managed_by_employee(self, malop: str, manv: str) -> bool:
+        """
+        Check if a class is already managed by the specified employee.
+
+        Args:
+            malop (str): Class ID to check
+            manv (str): Employee ID to check
+
+        Returns:
+            bool: True if class is managed by employee, False otherwise
+        """
+        if not malop or not manv:
+            logger.warning(
+                "Empty class ID or employee ID provided to check_class_managed_by_employee")
             return False
 
-        query = "SELECT 1 FROM LOP WHERE MANV = ? AND MALOP = ?"
-        results = self.execute_query(query, (manv, malop))
-        return results is not None and len(results) > 0
+        # Use direct query approach
+        try:
+            logger.info(
+                f"Using direct query to check if class {malop} is managed by employee {manv}")
+            query = "SELECT 1 FROM LOP WHERE MALOP = ? AND MANV = ?"
+            results = self.execute_query(query, (malop, manv))
+            exists = results is not None and len(results) > 0
+            logger.info(
+                f"Direct query result for class {malop} managed by employee {manv}: {exists}")
+            return exists
+        except Exception as e:
+            logger.error(
+                f"Query failed for class {malop} and employee {manv}: {str(e)}")
+            return False
 
     def add_class(self, malop: str, tenlop: str, manv: str):
         """
@@ -389,32 +411,46 @@ class DatabaseConnector:
             bool: True if employee exists, False otherwise
         """
         if not manv:
+            logger.warning(
+                "Empty employee ID provided to check_employee_exists")
             return False
 
+        # # First try with stored procedure
+        # try:
+        #     logger.info(
+        #         f"Checking if employee {manv} exists using stored procedure")
+        #     params = {'MANV': manv, 'RESULT': None}
+        #     result = self.execute_sproc('SP_CHECK_EMPLOYEE', params)
+
+        #     if isinstance(result, dict) and 'output_params' in result:
+        #         exists = bool(result['output_params'].get('RESULT', False))
+        #         logger.info(
+        #             f"Stored procedure result for employee {manv} existence: {exists}")
+        #         return exists
+
+        #     logger.warning(
+        #         f"Stored procedure did not return expected output parameters for employee {manv}")
+        #     # If we get here, the stored procedure didn't return the expected format
+        #     # We'll use the direct query approach instead of returning False immediately
+        # except Exception as e:
+        #     logger.error(
+        #         f"Error executing stored procedure to check if employee {manv} exists: {str(e)}")
+        #     # Continue to fallback query
+
+        # Fallback to direct query
         try:
-            # First try with stored procedure
-            params = {'MANV': manv, 'RESULT': None}
-            result = self.execute_sproc('SP_CHECK_EMPLOYEE', params)
-
-            if isinstance(result, dict) and 'output_params' in result:
-                return bool(result['output_params'].get('RESULT', True))
-
-            # If result is not a dictionary with output_params, it might be a direct result
-            # or the stored procedure might have failed silently
+            logger.info(
+                f"Falling back to direct query to check if employee {manv} exists")
+            query = "SELECT 1 FROM NHANVIEN WHERE MANV = ?"
+            results = self.execute_query(query, (manv,))
+            exists = results is not None and len(results) > 0
+            logger.info(
+                f"Direct query result for employee {manv} existence: {exists}")
+            return exists
+        except Exception as inner_e:
+            logger.error(
+                f"Final fallback query failed for employee {manv}: {str(inner_e)}")
             return False
-
-        except Exception as e:
-            logger.error(f"Error checking if employee exists: {e}")
-            # Try one more time with a simpler query as last resort
-            try:
-                query = "SELECT 1 FROM NHANVIEN WHERE MANV = ?"
-                cursor = self.conn.cursor()
-                cursor.execute(query, (manv,))
-                row = cursor.fetchone()
-                return row is not None
-            except Exception as inner_e:
-                logger.error(f"Final fallback query failed: {inner_e}")
-                return False
 
     def check_class_exists(self, malop: str) -> bool:
         """
@@ -427,51 +463,23 @@ class DatabaseConnector:
             bool: True if class exists, False otherwise
         """
         if not malop:
+            logger.warning("Empty class ID provided to check_class_exists")
             return False
 
+        # Use direct query approach
         try:
-            params = {'MALOP': malop, 'RESULT': None}
-            result = self.execute_sproc('SP_CHECK_CLASS_EXISTS', params)
-
-            if isinstance(result, dict) and 'output_params' in result:
-                return bool(result['output_params'].get('RESULT', False))
-            return False
-        except Exception as e:
-            logger.error(f"Error checking if class exists: {e}")
-            # Fallback to direct query if stored procedure fails
+            logger.info(
+                f"Using direct query to check if class {malop} exists")
             query = "SELECT 1 FROM LOP WHERE MALOP = ?"
             results = self.execute_query(query, (malop,))
-            return results is not None and len(results) > 0
-
-    def check_class_managed_by_employee(self, malop: str, manv: str) -> bool:
-        """
-        Check if a class is already managed by the specified employee.
-
-        Args:
-            malop (str): Class ID to check
-            manv (str): Employee ID to check
-
-        Returns:
-            bool: True if class is managed by employee, False otherwise
-        """
-        if not malop or not manv:
-            return False
-
-        try:
-            params = {'MALOP': malop, 'MANV': manv, 'RESULT': None}
-            result = self.execute_sproc(
-                'SP_CHECK_CLASS_MANAGED_BY_EMPLOYEE', params)
-
-            if isinstance(result, dict) and 'output_params' in result:
-                return bool(result['output_params'].get('RESULT', False))
-            return False
-        except Exception as e:
+            exists = results is not None and len(results) > 0
+            logger.info(
+                f"Direct query result for class {malop} existence: {exists}")
+            return exists
+        except Exception as inner_e:
             logger.error(
-                f"Error checking if class is managed by employee: {e}")
-            # Fallback to direct query if stored procedure fails
-            query = "SELECT 1 FROM LOP WHERE MALOP = ? AND MANV = ?"
-            results = self.execute_query(query, (malop, manv))
-            return results is not None and len(results) > 0
+                f"Query failed for class {malop}: {str(inner_e)}")
+            return False
 
     def update_class(self, malop, tenlop, manv):
         """
