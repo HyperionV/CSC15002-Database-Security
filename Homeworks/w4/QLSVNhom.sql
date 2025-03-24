@@ -27,8 +27,12 @@ CREATE TABLE NHANVIEN (
     LUONG VARBINARY(MAX),
     TENDN NVARCHAR(100) NOT NULL UNIQUE,
     MATKHAU VARBINARY(MAX) NOT NULL,
-    PUBKEY VARCHAR(20) 
+    PUBKEY VARCHAR(MAX) 
 );
+
+-- Modify PUBKEY column to store the full public key
+ALTER TABLE NHANVIEN
+ALTER COLUMN PUBKEY VARCHAR(MAX);
 
 -- Bảng Lớp
 CREATE TABLE LOP (
@@ -561,38 +565,30 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Kiểm tra xem khóa công khai đã tồn tại chưa
-    IF NOT EXISTS (SELECT * FROM sys.asymmetric_keys WHERE name = @MANV)
-    BEGIN
-        -- Tạo asymmetric key từ khóa công khai được cung cấp
-        EXEC('CREATE ASYMMETRIC KEY [' + @MANV + '] 
-              FROM ASYMMETRIC KEY = ' + @PUB + ';');
-    END
-
-    -- Chèn dữ liệu vào bảng NHANVIEN
+    -- Insert the pre-encrypted data directly
     INSERT INTO NHANVIEN (MANV, HOTEN, EMAIL, LUONG, TENDN, MATKHAU, PUBKEY)
-    VALUES (@MANV, @HOTEN, @EMAIL, @LUONG, @TENDN, @MK, @MANV); -- PUBKEY lưu tên khóa công khai
+    VALUES (@MANV, @HOTEN, @EMAIL, @LUONG, @TENDN, @MK, @PUB);
 END;
 GO
 
 -- Stored procedure truy vấn dữ liệu nhân viên 
 
 CREATE OR ALTER PROCEDURE SP_SEL_PUBLIC_ENCRYPT_NHANVIEN
-    @TENDN NVARCHAR(100), -- Tên đăng nhập
-    @MK VARBINARY(MAX)    -- Mật khẩu đã được mã hóa SHA1 từ client
+    @TENDN NVARCHAR(100),
+    @MK VARBINARY(MAX)    -- Password already hashed with SHA1 from client
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Truy vấn thông tin nhân viên
+    -- Return employee data with encrypted LUONG
     SELECT 
         MANV,
         HOTEN,
         EMAIL,
-        LUONG -- Giữ nguyên giá trị LUONG đã được mã hóa
+        LUONG  -- Return encrypted LUONG for client-side decryption
     FROM NHANVIEN
     WHERE TENDN = @TENDN
-      AND MATKHAU = @MK; -- So sánh mật khẩu đã được mã hóa SHA1
+      AND MATKHAU = @MK;
 END;
 GO
 

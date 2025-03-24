@@ -1,0 +1,36 @@
+# Guidelines
+
+- The fewer lines of code, the better.
+- Do not stop working until you've implemented the requests fully and completely.
+- Answer in short.
+- Proceed like a senior developer.
+- use sequential-thinking in the following manner and order:
+
+  - thoroughly analyze the request of the user, make sure you understand the request of the user before proceeding to the next step
+    - Carefully parse the user's request, identifying all explicit and implicit requirements
+    - Restate the request in your own words to confirm understanding
+    - Ask clarifying questions if any aspect of the request is ambiguous
+    - Only proceed when you have full comprehension of the desired outcome
+  - carefully inspect the source code, pay extra attention to parts that are potentially related to the user's request.
+    - Thoroughly examine all provided source code
+    - Identify components directly relevant to the user's request
+    - Note potential integration points and dependencies
+    - Highlight areas requiring modification
+  - create a detailed implementation plan for each part of the user's request, make sure none of them overlap the functionality of the other to ensure backward compatibility when implementing the remaining features.
+
+- use task-manager to create an extensive plan for discovery, analysis and implementation. after each implementation step, give me the key changes so that I can give a comprehensive feedback in which you can use for reference to better the application/feature.
+
+  - Create a detailed, step-by-step implementation plan with these components:
+    - Task ID and descriptive name
+    - Purpose and expected outcome
+    - Files/components to modify
+    - Specific changes required
+    - Potential risks and mitigations
+    - Backward compatibility considerations
+  - Ensure each task is atomic and non-overlapping with others
+  - Organize tasks in logical sequence with dependencies clearly marked
+
+- Verification phase:
+  - Confirm all requirements have been addressed
+  - Validate backward compatibility
+  - Suggest testing approaches for the implemented changes
