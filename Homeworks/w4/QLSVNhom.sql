@@ -510,15 +510,17 @@ CREATE PROCEDURE SP_INS_PUBLIC_ENCRYPT_NHANVIEN
     @HOTEN NVARCHAR(100),
     @EMAIL VARCHAR(20),
     @LUONG VARBINARY(MAX), 
+    @LUONG VARCHAR(MAX),
     @TENDN NVARCHAR(100),
-    @MK VARBINARY(MAX),    
-    @PUB VARCHAR(MAX)      
+    @MK NVARCHAR(100), -- Mật khẩu gốc
+    @PUB VARCHAR(MAX)
 AS
 BEGIN
     SET NOCOUNT ON;
 
+    -- Insert the pre-encrypted data directly
     INSERT INTO NHANVIEN (MANV, HOTEN, EMAIL, LUONG, TENDN, MATKHAU, PUBKEY)
-    VALUES (@MANV, @HOTEN, @EMAIL, @LUONG, @TENDN, @MK, @PUB);
+    VALUES (@MANV, @HOTEN, @EMAIL, CONVERT(VARBINARY(MAX), @LUONG), @TENDN, @MATKHAU_HASHED, @PUB);
 END;
 GO
 
@@ -528,16 +530,44 @@ CREATE PROCEDURE SP_SEL_PUBLIC_ENCRYPT_NHANVIEN
 AS
 BEGIN
     SET NOCOUNT ON;
+    
+    BEGIN TRY
+        -- Kiểm tra thông tin đăng nhập
+        IF EXISTS (
+            SELECT 1 
+            FROM NHANVIEN 
+            WHERE TENDN = @TENDN 
+            AND MATKHAU = HASHBYTES('SHA1', @MK)
+        )
+        BEGIN
+            -- Trả về thông tin nhân viên với lương chưa giải mã
+            SELECT 
+                MANV,
+                HOTEN,
+                EMAIL,
+                LUONG AS LUONG_ENCRYPTED, -- Giữ nguyên dạng đã mã hóa
+                PUBKEY
+            FROM NHANVIEN
+            WHERE TENDN = @TENDN 
+            AND MATKHAU = HASHBYTES('SHA1', @MK);
+        END
+        ELSE
+        BEGIN
+            RAISERROR('Thông tin đăng nhập không chính xác', 16, 1);
+        END
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000);
+        DECLARE @ErrorSeverity INT;
+        DECLARE @ErrorState INT;
 
-    SELECT 
-        MANV,
-        HOTEN,
-        EMAIL,
-        LUONG,  
-        PUBKEY 
-    FROM NHANVIEN
-    WHERE TENDN = @TENDN
-      AND MATKHAU = @MK;
+        SELECT 
+            @ErrorMessage = ERROR_MESSAGE(),
+            @ErrorSeverity = ERROR_SEVERITY(),
+            @ErrorState = ERROR_STATE();
+
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
 END;
 GO
 
@@ -632,3 +662,10 @@ EXEC SP_SEL_BANGDIEM_BY_MAHP 'HP001', 'NV001', 'abcd12';
 
 -- View grades for class L001 (requires employee credentials)
 EXEC SP_SEL_BANGDIEM_BY_MALOP 'L001', 'NV001', 'abcd12';
+
+
+-- Thêm mới nhân viên với các thông tin:
+EXEC SP_INS_PUBLIC_ENCRYPT_NHANVIEN 'NV01', 'NGUYEN VAN A', 'NVA@', 'LLLLLL', 'NVA', 'MKMKMKMK', 'PUBPUB';
+
+-- Truy vấn thông tin nhân viên vừa thêm:
+EXEC SP_SEL_PUBLIC_ENCRYPT_NHANVIEN 'NVA', 'MKMKMKMK';
