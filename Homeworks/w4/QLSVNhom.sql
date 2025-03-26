@@ -541,7 +541,6 @@ BEGIN
 END;
 GO
 
--- New stored procedure for updating grades with pre-encrypted data
 CREATE PROCEDURE SP_UPD_ENCRYPTED_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
@@ -556,7 +555,6 @@ BEGIN
 END;
 GO
 
--- New stored procedure for inserting grades with pre-encrypted data
 CREATE PROCEDURE SP_INS_ENCRYPTED_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
