@@ -231,6 +231,7 @@ class DataTable(ttk.Treeview):
         self.columns = columns
         self.on_select = on_select
         self.show_buttons = show_buttons
+        self.row_data = {}  # Store original data for each row
 
         # Create a frame to hold the table and scrollbar
         self.frame = ttk.Frame(master)
@@ -301,6 +302,9 @@ class DataTable(ttk.Treeview):
         for i in self.get_children():
             self.delete(i)
 
+        # Clear row data dictionary
+        self.row_data = {}
+
         # Insert new data
         for i, item in enumerate(data):
             # Get values for all columns
@@ -314,6 +318,9 @@ class DataTable(ttk.Treeview):
 
             # Get the unique ID for this row if available
             item_id = str(item.get('id', i))
+
+            # Store original data for this row
+            self.row_data[item_id] = item.copy()
 
             # Insert the row with appropriate tag
             self.insert('', tk.END, values=values,
@@ -353,6 +360,31 @@ class DataTable(ttk.Treeview):
         if selection:
             return selection[0]
         return None
+
+    def get_row_data(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """Get the data for a specific row by ID."""
+        # Return the stored data for this row if available
+        if item_id in self.row_data:
+            return self.row_data[item_id]
+
+        # Fall back to extracting data from the visible table
+        if item_id not in self.get_children():
+            return None
+
+        values = self.item(item_id)['values']
+        if not values:
+            return None
+
+        # Create a dictionary with column IDs as keys
+        result = {}
+        for i, col in enumerate(self.columns):
+            if i < len(values):
+                result[col['id']] = values[i]
+
+        # Include the ID
+        result['id'] = item_id
+
+        return result
 
     def _on_row_selected(self, event) -> None:
         """Handle row selection event."""

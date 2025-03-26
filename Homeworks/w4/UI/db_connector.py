@@ -1,6 +1,7 @@
 import pyodbc
 import logging
 import base64
+import hashlib
 from typing import Optional, Dict, List, Any, Tuple, Union
 from datetime import datetime
 
@@ -239,82 +240,39 @@ class DatabaseConnector:
     def authenticate_employee(self, username: str, password: str) -> Optional[Dict]:
         """Authenticate an employee using the SP_SEL_PUBLIC_NHANVIEN stored procedure."""
         try:
-            # logger.info(f"Attempting authentication for user: {username}")
-
-            # # Try direct SQL approach instead of stored procedure
-            # direct_query = """
-            # SELECT
-            #     MANV,
-            #     HOTEN,
-            #     EMAIL,
-            #     DECRYPTBYASYMKEY(ASYMKEY_ID('AsymKey_NhanVien'), LUONG) AS DECRYPTED_BINARY
-            # FROM NHANVIEN
-            # WHERE TENDN = ? AND MATKHAU = HASHBYTES('SHA1', ?)
-            # """
-
-            # # Execute the direct SQL query
-            # direct_results = self.execute_query(
-            #     direct_query, (username, password))
-
-            # if direct_results and len(direct_results) > 0:
-            #     employee = direct_results[0]
-            #     logger.info(
-            #         f"Retrieved employee data (direct query): {employee}")
-
-            #     # Remove the binary data from results before returning
-            #     if 'DECRYPTED_BINARY' in employee:
-            #         del employee['DECRYPTED_BINARY']
-
-            #     return employee
-
+            # Call the stored procedure directly
             params = {'TENDN': username, 'MK': password}
-            logger.info(f"params original: {params}")
-            results = self.execute_sproc('SP_SEL_PUBLIC_NHANVIEN', params)
-            logger.info(f"SP results: {results}")
+            result = self.execute_sproc('SP_SEL_PUBLIC_NHANVIEN', params)
 
-            # Handle the case where results is a boolean (True) instead of a list
-            if isinstance(results, bool):
-                # Try a direct query approach as fallback
-                query = """
-                SELECT MANV, HOTEN, EMAIL
-                FROM NHANVIEN
-                WHERE TENDN = ? AND MATKHAU = HASHBYTES('SHA1', ?)
-                """
-                direct_results = self.execute_query(
-                    query, (username, password))
-                if direct_results and len(direct_results) > 0:
-                    employee = direct_results[0]
-                    logger.info(
-                        f"Retrieved employee data (direct query fallback): {employee}")
-                    # Set a default LUONGCB value since we can't decrypt it this way
-                    employee['LUONGCB'] = 0
-                    return employee
-                return None
+            if result and len(result) > 0:
+                employee = result[0]
+                logger.info(f"Retrieved employee data: {employee['MANV']}")
 
-            if results and isinstance(results, list) and len(results) > 0:
-                employee = results[0]
-                logger.info(
-                    f"Retrieved employee data (original SP): {employee}")
+                # Get the PUBKEY for the employee separately as it might not be returned by the SP
+                pubkey_query = "SELECT PUBKEY FROM NHANVIEN WHERE MANV = ?"
+                pubkey_result = self.execute_query(
+                    pubkey_query, (employee['MANV'],))
 
-                # Handle the LUONGCB field
-                if 'LUONGCB' in employee:
-                    if employee['LUONGCB'] is None:
-                        employee['LUONGCB'] = 0
-                        logger.warning("LUONGCB is NULL, defaulted to 0")
-                    else:
-                        # Ensure it's an integer
-                        try:
-                            employee['LUONGCB'] = int(employee['LUONGCB'])
-                            logger.info(
-                                f"Successfully converted LUONGCB to int: {employee['LUONGCB']}")
-                            return employee
-                        except (ValueError, TypeError) as e:
-                            logger.error(
-                                f"Failed to convert LUONGCB to int: {employee['LUONGCB']}, error: {str(e)}")
-                else:
-                    logger.warning("LUONGCB field not found in results")
+                if pubkey_result and len(pubkey_result) > 0 and 'PUBKEY' in pubkey_result[0]:
+                    employee['PUBKEY'] = pubkey_result[0]['PUBKEY']
+
+                # Get raw LUONG data if not included in the stored procedure result
+                if 'LUONG' not in employee or employee['LUONG'] is None:
+                    salary_query = "SELECT LUONG FROM NHANVIEN WHERE MANV = ?"
+                    salary_result = self.execute_query(
+                        salary_query, (employee['MANV'],))
+
+                    if salary_result and len(salary_result) > 0 and 'LUONG' in salary_result[0]:
+                        employee['LUONG'] = salary_result[0]['LUONG']
+
+                # Keep a copy of the raw encrypted salary for backward compatibility
+                if 'LUONG' in employee and employee['LUONG']:
+                    employee['ENCRYPTED_LUONG'] = employee['LUONG']
+
+                return employee
 
             return None
+
         except Exception as e:
             logger.error(f"Error in authenticate_employee: {str(e)}")
             return None
@@ -587,131 +545,128 @@ class DatabaseConnector:
         result = self.execute_sproc('SP_DEL_SINHVIEN', params)
         return result is not None
 
-    def add_grade(self, masv: str, mahp: str, diemthi: float, manv: str) -> bool:
-        """Add a grade with encryption."""
-        params = {
-            'MASV': masv,
-            'MAHP': mahp,
-            'DIEMTHI': diemthi,
-            'MANV': manv
-        }
-        result = self.execute_sproc('SP_INS_BANGDIEM', params)
-        return result is not None
-
-    def update_grade(self, masv: str, mahp: str, diemthi: float, manv: str) -> bool:
-        """Update a grade with encryption."""
-        params = {
-            'MASV': masv,
-            'MAHP': mahp,
-            'DIEMTHI': diemthi,
-            'MANV': manv
-        }
-        result = self.execute_sproc('SP_UPD_BANGDIEM', params)
-        return result is not None
-
-    def get_grades_by_class(self, malop: str, manv: Optional[str] = None, password: Optional[str] = None) -> Optional[List[Dict]]:
+    def add_grade(self, masv: str, mahp: str, diemthi: bytes, manv: str) -> bool:
         """
-        Get grades for students in a class.
+        Add a grade with client-side encryption.
 
         Args:
-            malop (str): Class ID
-            manv (Optional[str]): Employee ID for asymmetric key decryption
-            password (Optional[str]): Password for asymmetric key decryption
+            masv: Student ID
+            mahp: Course ID
+            diemthi: Encrypted grade data as bytes
+            manv: Employee ID who is adding the grade
 
         Returns:
-            Optional[List[Dict]]: List of grade records or None if error
+            True if successful, False otherwise
         """
-        # Import here to avoid circular import
-        from session import EmployeeSession
+        try:
+            logger.info(f"Adding grade for student {masv}, course {mahp}")
 
-        # Get employee session
-        employee_session = EmployeeSession()
+            # Use direct query with binary parameter
+            query = """
+            INSERT INTO BANGDIEM (MASV, MAHP, DIEMTHI)
+            VALUES (?, ?, ?)
+            """
 
-        # Use provided parameters or get from session
-        manv = manv or employee_session.employee_id
-        password = password or employee_session.password
+            # Execute the query
+            self.execute_query(query, (masv, mahp, pyodbc.Binary(diemthi)))
 
-        # Check if we have the required parameters
-        if not manv or not password:
-            logger.error(
-                "Missing employee ID or password for grade decryption")
-            return None
+            logger.info(
+                f"Successfully added grade for student {masv}, course {mahp}")
+            return True
 
-        # Set up parameters for stored procedure
-        params = {
-            'MALOP': malop,
-            'MANV': manv,
-            'MK': password
-        }
+        except Exception as e:
+            logger.error(f"Error in add_grade: {str(e)}")
+            return False
 
-        logger.info(f"Getting grades for class {malop} with employee {manv}")
-        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MALOP', params)
-
-        # Handle the case where results is a boolean (True) instead of a list
-        if isinstance(results, bool):
-            logger.warning(
-                "Stored procedure returned boolean instead of results")
-            return []
-
-        # Handle NULL values from TRY_CAST
-        if results and isinstance(results, list):
-            for result in results:
-                if 'DIEMTHI' in result and result['DIEMTHI'] is None:
-                    result['DIEMTHI'] = 0.0
-
-        return results
-
-    def get_grades_by_student(self, masv: str, manv: Optional[str] = None, password: Optional[str] = None) -> Optional[List[Dict]]:
+    def update_grade(self, masv: str, mahp: str, diemthi: bytes, manv: str) -> bool:
         """
-        Get grades for a student.
+        Update a grade with client-side encryption.
 
         Args:
-            masv (str): Student ID
-            manv (Optional[str]): Employee ID for asymmetric key decryption
-            password (Optional[str]): Password for asymmetric key decryption
+            masv: Student ID
+            mahp: Course ID
+            diemthi: Encrypted grade data as bytes
+            manv: Employee ID who is updating the grade
 
         Returns:
-            Optional[List[Dict]]: List of grade records or None if error
+            True if successful, False otherwise
         """
-        # Import here to avoid circular import
-        from session import EmployeeSession
+        try:
+            logger.info(f"Updating grade for student {masv}, course {mahp}")
 
-        # Get employee session
-        employee_session = EmployeeSession()
+            # Use direct query with binary parameter
+            query = """
+            UPDATE BANGDIEM
+            SET DIEMTHI = ?
+            WHERE MASV = ? AND MAHP = ?
+            """
 
-        # Use provided parameters or get from session
-        manv = manv or employee_session.employee_id
-        password = password or employee_session.password
+            # Execute the query
+            self.execute_query(query, (pyodbc.Binary(diemthi), masv, mahp))
 
-        # Check if we have the required parameters
-        if not manv or not password:
-            logger.error(
-                "Missing employee ID or password for grade decryption")
+            logger.info(
+                f"Successfully updated grade for student {masv}, course {mahp}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in update_grade: {str(e)}")
+            return False
+
+    def get_grades_by_class(self, class_id: str) -> Optional[List[Dict]]:
+        """Get grades for students in a class with raw encrypted data."""
+        try:
+            # Query to get grades for students in a class
+            query = """
+            SELECT BD.MASV, S.HOTEN AS TENSV, BD.MAHP, HP.TENHP, BD.DIEMTHI
+            FROM BANGDIEM BD
+            JOIN SINHVIEN S ON BD.MASV = S.MASV
+            JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
+            WHERE S.MALOP = ?
+            """
+
+            results = self.execute_query(query, (class_id,))
+
+            if results:
+                for result in results:
+                    if 'DIEMTHI' in result and result['DIEMTHI']:
+                        # Store the encrypted grade for later decryption
+                        result['ENCRYPTED_DIEMTHI'] = result['DIEMTHI']
+                        # Placeholder for encrypted data
+                        result['DIEMTHI'] = "***"
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error in get_grades_by_class: {str(e)}")
             return None
 
-        # Set up parameters for stored procedure
-        params = {
-            'MASV': masv,
-            'MANV': manv,
-            'MK': password
-        }
+    def get_grades_by_student(self, student_id: str) -> Optional[List[Dict]]:
+        """Get grades for a student with raw encrypted data."""
+        try:
+            # Query to get grades for a student
+            query = """
+            SELECT BD.MASV, S.HOTEN AS TENSV, BD.MAHP, HP.TENHP, BD.DIEMTHI
+            FROM BANGDIEM BD
+            JOIN SINHVIEN S ON BD.MASV = S.MASV
+            JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
+            WHERE BD.MASV = ?
+            """
 
-        logger.info(f"Getting grades for student {masv} with employee {manv}")
-        results = self.execute_sproc('SP_SEL_BANGDIEM_BY_MASV', params)
+            results = self.execute_query(query, (student_id,))
 
-        # Handle the case where results is a boolean (True) instead of a list
-        if isinstance(results, bool):
-            logger.warning(
-                "Stored procedure returned boolean instead of results")
-            return []
+            if results:
+                for result in results:
+                    if 'DIEMTHI' in result and result['DIEMTHI']:
+                        # Store the encrypted grade for later decryption
+                        result['ENCRYPTED_DIEMTHI'] = result['DIEMTHI']
+                        # Placeholder for encrypted data
+                        result['DIEMTHI'] = "***"
 
-        # Handle NULL values from TRY_CAST
-        if results and isinstance(results, list):
-            for result in results:
-                if 'DIEMTHI' in result and result['DIEMTHI'] is None:
-                    result['DIEMTHI'] = 0.0  # Default to 0.0 for NULL grades
+            return results
 
-        return results
+        except Exception as e:
+            logger.error(f"Error in get_grades_by_student: {str(e)}")
+            return None
 
     def authenticate_employee_with_client_encryption(self, username: str, password: str) -> Optional[Dict]:
         """
@@ -740,7 +695,8 @@ class DatabaseConnector:
                 MANV,
                 HOTEN,
                 EMAIL,
-                LUONG
+                LUONG,
+                PUBKEY
             FROM NHANVIEN
             WHERE TENDN = ? AND MATKHAU = ?
             """
@@ -757,11 +713,9 @@ class DatabaseConnector:
                 logger.info(
                     f"Retrieved encrypted employee data: {employee['MANV']}")
 
-                # Store the encrypted salary for later decryption
+                # Keep a copy of the raw LUONG field for backward compatibility
                 if 'LUONG' in employee and employee['LUONG']:
                     employee['ENCRYPTED_LUONG'] = employee['LUONG']
-                    # Clear the encrypted value from the main field
-                    employee['LUONG'] = None
 
                 return employee
 
@@ -886,7 +840,7 @@ class DatabaseConnector:
             return None
 
     def get_employees(self) -> Optional[List[Dict]]:
-        """Get all employees."""
+        """Get all employees with raw LUONG data."""
         try:
             query = """
             SELECT MANV, HOTEN, EMAIL, LUONG, PUBKEY

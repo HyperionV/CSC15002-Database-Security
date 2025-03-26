@@ -24,6 +24,7 @@ class EmployeeSession:
             self._authenticated = False
             self._password = None  # Store password for private key access
             self._private_key = None  # Store loaded private key
+            self._public_key = None  # Store employee's public key
             self._crypto_mgr = CryptoManager()
             self._initialized = True
             logger.info("Employee session initialized")
@@ -47,12 +48,9 @@ class EmployeeSession:
         self._authenticated = True
         self._password = password  # Store password for private key access
 
-        # Try to load the private key
+        # Try to load the keys
         if password and 'MANV' in employee_data:
-            try:
-                self._private_key = self._crypto_mgr.load_private_key(
-                    employee_data['MANV'], password)
-
+            if self.load_keys():
                 # If we have encrypted salary data, decrypt it
                 if 'ENCRYPTED_LUONG' in employee_data and employee_data['ENCRYPTED_LUONG']:
                     try:
@@ -67,9 +65,6 @@ class EmployeeSession:
                         logger.error(f"Failed to decrypt salary: {str(e)}")
                         employee_data['LUONG'] = 0
 
-            except Exception as e:
-                logger.error(f"Failed to load private key: {str(e)}")
-
         logger.info(
             f"Employee {employee_data.get('MANV')} logged in successfully")
         return True
@@ -80,6 +75,7 @@ class EmployeeSession:
         self._authenticated = False
         self._password = None
         self._private_key = None
+        self._public_key = None
         logger.info("Employee logged out")
 
     @property
@@ -110,6 +106,11 @@ class EmployeeSession:
     def private_key(self) -> Optional[Any]:
         """Get the loaded private key."""
         return self._private_key
+
+    @property
+    def public_key(self) -> Optional[str]:
+        """Get the employee's public key."""
+        return self._public_key
 
     @property
     def employee_data(self) -> Optional[Dict[str, Any]]:
@@ -183,3 +184,93 @@ class EmployeeSession:
 
         # Call the stored procedure to check permission
         return db_connector.check_employee_manages_class(employee_id, class_id)
+
+    def load_keys(self) -> bool:
+        """
+        Load the employee's private key if available.
+
+        Returns:
+            bool: True if keys loaded successfully, False otherwise
+        """
+        if not self.is_authenticated or not self._password:
+            logger.error(
+                "Cannot load keys: No authenticated employee or password missing")
+            return False
+
+        try:
+            # Load private key
+            self._private_key = self._crypto_mgr.load_private_key(
+                self._employee_data['MANV'],
+                self._password
+            )
+
+            # Store public key from employee data
+            if 'PUBKEY' in self._employee_data and self._employee_data['PUBKEY']:
+                self._public_key = self._employee_data['PUBKEY']
+
+            return self._private_key is not None
+
+        except Exception as e:
+            logger.error(f"Failed to load keys: {str(e)}")
+            return False
+
+    def encrypt_grade(self, grade: float) -> Optional[str]:
+        """
+        Encrypt a grade value for database storage.
+
+        Args:
+            grade: Grade value to encrypt
+
+        Returns:
+            str: Encoded and encrypted grade ready for database storage,
+                 or None if encryption fails
+        """
+        if not self.is_authenticated:
+            logger.error("Cannot encrypt grade: No authenticated employee")
+            return None
+
+        try:
+            # Get the employee's public key
+            if 'PUBKEY' not in self._employee_data or not self._employee_data['PUBKEY']:
+                logger.error("No public key available for grade encryption")
+                return None
+
+            public_key_pem = self._employee_data['PUBKEY']
+
+            # Encrypt the grade and encode for DB storage
+            return self._crypto_mgr.encrypt_data_for_db(
+                public_key_pem,
+                str(grade)
+            )
+
+        except Exception as e:
+            logger.error(f"Error encrypting grade: {str(e)}")
+            return None
+
+    def decrypt_grade(self, encoded_grade: str) -> Optional[float]:
+        """
+        Decrypt a grade value retrieved from the database.
+
+        Args:
+            encoded_grade: Encoded and encrypted grade from database
+
+        Returns:
+            float: Decrypted grade value, or None if decryption fails
+        """
+        if not self.is_authenticated or not self._private_key:
+            logger.error("Cannot decrypt grade: No private key available")
+            return None
+
+        try:
+            # Decrypt from database format
+            decrypted_value = self._crypto_mgr.decrypt_data_from_db(
+                self._private_key,
+                encoded_grade
+            )
+
+            # Convert to float
+            return float(decrypted_value)
+
+        except Exception as e:
+            logger.error(f"Error decrypting grade: {str(e)}")
+            return None

@@ -28,6 +28,9 @@ class GradeForm(Form):
         # Store class ID
         self.class_id = class_id
 
+        # Store encrypted grade data for editing
+        self.encrypted_grade = None
+
         # Callbacks
         self.on_save_callback = on_save
         self.on_cancel_callback = on_cancel
@@ -35,6 +38,16 @@ class GradeForm(Form):
         # Create form fields
         self._create_fields()
         self.create_buttons(self.save, self.cancel)
+
+    def enter_edit_mode(self, item_id, data):
+        """Enter edit mode with the provided data."""
+        super().enter_edit_mode(item_id, data)
+
+        # Store encrypted grade data if available
+        if 'ENCRYPTED_DIEMTHI' in data:
+            self.encrypted_grade = data['ENCRYPTED_DIEMTHI']
+        else:
+            self.encrypted_grade = None
 
     def _create_fields(self):
         """Create the form fields."""
@@ -106,26 +119,19 @@ class GradeForm(Form):
             # Convert grade to float
             diemthi = float(data['DIEMTHI'])
 
-            # Get the employee session
-            employee_data = self.employee_session.employee_data
-
-            # Check if we have the public key
-            if not employee_data or 'PUBKEY' not in employee_data:
+            # Get the employee's public key for encryption
+            public_key = self.employee_session.public_key
+            if not public_key:
                 MessageDisplay.show_error(
                     "Lỗi", "Không tìm thấy khóa công khai của nhân viên")
                 return
 
-            # Create crypto manager
-            crypto_mgr = CryptoManager()
-
-            # Encrypt the grade using the employee's public key
-            encrypted_grade = crypto_mgr.encrypt_data(
-                employee_data['PUBKEY'],
-                str(diemthi)
-            )
-
-            # Encode the encrypted grade for database storage
-            encoded_grade = crypto_mgr.encode_for_db(encrypted_grade)
+            # Encrypt the grade using the employee's session methods
+            encoded_grade = self.employee_session.encrypt_grade(diemthi)
+            if not encoded_grade:
+                MessageDisplay.show_error(
+                    "Lỗi", "Không thể mã hóa điểm")
+                return
 
             if self.is_edit_mode:
                 # Update grade with client-side encryption
@@ -157,6 +163,8 @@ class GradeForm(Form):
     def cancel(self):
         """Cancel the form and call the cancel callback."""
         super().cancel()
+        # Reset encrypted grade data
+        self.encrypted_grade = None
         if self.on_cancel_callback:
             self.on_cancel_callback()
 
@@ -395,7 +403,7 @@ class GradeManagementScreen(ttk.Frame):
         self.grade_form.pack_forget()
 
     def refresh_grades(self, class_id):
-        """Refresh the grade list for a class with client-side decryption."""
+        """Refresh the grade list for a class with raw encrypted data display."""
         try:
             # Get grades for this class with encrypted data
             grades = self.db.get_grades_with_client_encryption(class_id)
@@ -404,21 +412,23 @@ class GradeManagementScreen(ttk.Frame):
             table_data = []
             if grades:
                 for grade in grades:
-                    # Try to decrypt the grade if we have the private key
-                    diemthi_display = "***"  # Default to hidden
+                    # Display raw encrypted grade data
+                    diemthi_display = grade.get('ENCRYPTED_DIEMTHI', b'').hex()
 
-                    if 'ENCRYPTED_DIEMTHI' in grade and grade['ENCRYPTED_DIEMTHI']:
-                        try:
-                            # Check if we have the private key loaded
-                            if self.employee_session.private_key:
-                                # Decrypt the grade
-                                decrypted_grade = self.employee_session.decrypt_data(
-                                    grade['ENCRYPTED_DIEMTHI']
-                                )
-                                if decrypted_grade:
-                                    diemthi_display = float(decrypted_grade)
-                        except Exception as e:
-                            logger.error(f"Error decrypting grade: {e}")
+                    # Try to decrypt the grade if we have the private key and show both the raw and decrypted
+                    # if 'ENCRYPTED_DIEMTHI' in grade and grade['ENCRYPTED_DIEMTHI']:
+                    #     try:
+                    #         # Check if we have the private key loaded
+                    #         if self.employee_session.private_key:
+                    #             # Decrypt the grade
+                    #             decrypted_grade = self.employee_session.decrypt_data(
+                    #                 grade['ENCRYPTED_DIEMTHI']
+                    #             )
+                    #             if decrypted_grade:
+                    #                 # Show both raw and decrypted data
+                    #                 diemthi_display = f"{diemthi_display} ({float(decrypted_grade):.1f})"
+                    #     except Exception as e:
+                    #         logger.error(f"Error decrypting grade: {e}")
 
                     table_data.append({
                         # Composite key
@@ -427,7 +437,9 @@ class GradeManagementScreen(ttk.Frame):
                         'TENSV': grade['TENSV'],
                         'MAHP': grade['MAHP'],
                         'TENHP': grade['TENHP'],
-                        'DIEMTHI': diemthi_display
+                        'DIEMTHI': diemthi_display,
+                        # Store raw data for editing
+                        'RAW_DIEMTHI': grade.get('ENCRYPTED_DIEMTHI')
                     })
 
                 # Load data into table
@@ -471,23 +483,45 @@ class GradeManagementScreen(ttk.Frame):
             if selection:
                 item = self.grades_table.item(selection[0])
                 values = item['values']
+                item_data = item.get('values', {})
 
                 # Get column indices
                 columns = self.grades_table['columns']
                 idx_masv = columns.index('MASV')
                 idx_mahp = columns.index('MAHP')
-                idx_diemthi = columns.index('DIEMTHI')
 
                 # Get values from the selected row
                 masv = values[idx_masv]
                 mahp = values[idx_mahp]
-                diemthi = values[idx_diemthi]
+
+                # Get raw encrypted data from the internal data structure
+                raw_data = self.grades_table.get_row_data(selected_id)
+                if not raw_data or 'RAW_DIEMTHI' not in raw_data:
+                    MessageDisplay.show_error(
+                        "Lỗi", "Không thể tải dữ liệu điểm mã hóa")
+                    return
+
+                encrypted_grade = raw_data['RAW_DIEMTHI']
+
+                # Try to decrypt the grade for display
+                diemthi = ""
+                try:
+                    if self.employee_session.private_key and encrypted_grade:
+                        decrypted_grade = self.employee_session.decrypt_data(
+                            encrypted_grade)
+                        if decrypted_grade:
+                            diemthi = float(decrypted_grade)
+                except Exception as e:
+                    logger.error(f"Error decrypting grade for editing: {e}")
+                    MessageDisplay.show_warning(
+                        "Cảnh Báo", "Không thể giải mã điểm, sẽ hiển thị trống trong biểu mẫu")
 
                 # Populate form with grade data
                 self.grade_form.enter_edit_mode(selected_id, {
                     'MASV': masv,
                     'MAHP': mahp,
-                    'DIEMTHI': diemthi
+                    'DIEMTHI': diemthi,
+                    'ENCRYPTED_DIEMTHI': encrypted_grade  # Pass the encrypted data to the form
                 })
 
                 # Make student and course fields read-only in edit mode

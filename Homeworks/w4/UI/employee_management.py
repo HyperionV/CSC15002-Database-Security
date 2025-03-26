@@ -236,18 +236,11 @@ class EmployeeManagementScreen(ttk.Frame):
             table_data = []
             if employees:
                 for emp in employees:
-                    # Decrypt salary if possible and if current user has permission
-                    salary_display = "***"  # Default to hidden
-
-                    # Only the employee themselves can see their own salary
-                    if self.employee_session.employee_id == emp['MANV']:
-                        try:
-                            decrypted_salary = self.db.decrypt_employee_salary(
-                                emp, self.employee_session.password)
-                            if decrypted_salary is not None:
-                                salary_display = f"{decrypted_salary:,}"
-                        except Exception as e:
-                            logger.error(f"Failed to decrypt salary: {e}")
+                    # Display raw LUONG data as hexadecimal
+                    salary_display = ""
+                    if 'LUONG' in emp and emp['LUONG']:
+                        # Convert raw binary to hex for display
+                        salary_display = emp['LUONG'].hex()
 
                     table_data.append({
                         'id': emp['MANV'],  # Use employee ID as row ID

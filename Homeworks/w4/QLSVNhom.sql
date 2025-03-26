@@ -24,10 +24,10 @@ CREATE TABLE NHANVIEN (
     MANV VARCHAR(20) PRIMARY KEY,
     HOTEN NVARCHAR(100) NOT NULL,
     EMAIL VARCHAR(20),
-    LUONG VARBINARY(MAX),
+    LUONG VARBINARY(MAX),  -- Encrypted salary data
     TENDN NVARCHAR(100) NOT NULL UNIQUE,
-    MATKHAU VARBINARY(MAX) NOT NULL,
-    PUBKEY VARCHAR(MAX) 
+    MATKHAU VARBINARY(MAX) NOT NULL,  -- SHA1 hashed password
+    PUBKEY VARCHAR(MAX)  -- Public key for encryption
 );
 
 -- Modify PUBKEY column to store the full public key
@@ -65,7 +65,7 @@ CREATE TABLE HOCPHAN (
 CREATE TABLE BANGDIEM (
     MASV VARCHAR(20),
     MAHP VARCHAR(20),
-    DIEMTHI VARBINARY(MAX),
+    DIEMTHI VARBINARY(MAX),  -- Encrypted grade data
     PRIMARY KEY (MASV, MAHP),
     FOREIGN KEY (MASV) REFERENCES SINHVIEN(MASV) ON DELETE CASCADE,
     FOREIGN KEY (MAHP) REFERENCES HOCPHAN(MAHP) ON DELETE CASCADE
@@ -412,26 +412,19 @@ BEGIN
     SELECT @StudentClassManager = L.MANV
     FROM LOP L
     WHERE L.MALOP = @StudentClass;
+
+    -- Return grade data with raw encrypted DIEMTHI
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CASE 
-            WHEN @MANV = @StudentClassManager THEN
-                CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
-                    ASYMKEY_ID(@MANV), 
-                    BD.DIEMTHI,
-                    @MK
-                )))
-            ELSE NULL -- Cannot decrypt grades encrypted by other employees
-        END AS DIEMTHI,
+        BD.DIEMTHI,  -- Return raw encrypted grade
         @StudentClassManager AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
     JOIN HOCPHAN HP ON BD.MAHP = HP.MAHP
     WHERE BD.MASV = @MASV;
-
 END;
 GO
 
@@ -444,21 +437,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    -- Return grade data with raw encrypted DIEMTHI
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CASE 
-            -- Only decrypt if the current employee is the one who manages the student's class
-            WHEN L.MANV = @MANV THEN
-                CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
-                    ASYMKEY_ID(@MANV), 
-                    BD.DIEMTHI,
-                    @MK
-                )))
-            ELSE NULL -- Cannot decrypt grades encrypted by other employees
-        END AS DIEMTHI,
+        BD.DIEMTHI,  -- Return raw encrypted grade
         L.MANV AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
@@ -481,21 +466,13 @@ BEGIN
     DECLARE @ClassManager VARCHAR(20);
     SELECT @ClassManager = MANV FROM LOP WHERE MALOP = @MALOP;
     
+    -- Return grade data with raw encrypted DIEMTHI
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        CASE 
-            -- Only decrypt if the current employee is the one who manages this class
-            WHEN @MANV = @ClassManager THEN
-                CONVERT(FLOAT, CONVERT(VARCHAR(20), DECRYPTBYASYMKEY(
-                    ASYMKEY_ID(@MANV), 
-                    BD.DIEMTHI,
-                    @MK
-                )))
-            ELSE NULL -- Cannot decrypt grades encrypted by other employees
-        END AS DIEMTHI,
+        BD.DIEMTHI,  -- Return raw encrypted grade
         @ClassManager AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
@@ -580,12 +557,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Return employee data with encrypted LUONG
+    -- Return employee data with encrypted LUONG and PUBKEY
     SELECT 
         MANV,
         HOTEN,
         EMAIL,
-        LUONG  -- Return encrypted LUONG for client-side decryption
+        LUONG,  -- Return encrypted LUONG for client-side decryption
+        PUBKEY  -- Return the public key for potential use
     FROM NHANVIEN
     WHERE TENDN = @TENDN
       AND MATKHAU = @MK;
@@ -596,14 +574,24 @@ GO
 -- Test data    
 -- ==============================   
 
+-- Make sure to drop any existing test data or SQL server asymmetric keys
+IF EXISTS (SELECT * FROM sys.asymmetric_keys WHERE name = 'NV001')
+    DROP ASYMMETRIC KEY [NV001]
+GO
+
+-- Initialize NV001 employee with both public and private key using original method
 EXEC SP_INS_PUBLIC_NHANVIEN 'NV001', 'NGUYEN VAN A',
 'NVA@', 3000000, 'NVA', 'abcd12'
 
-SELECT * FROM NHANVIEN;
+-- After insertion, get the key to see what's stored
+DECLARE @PubKeyInfo VARCHAR(MAX)
+SELECT @PubKeyInfo = PUBKEY FROM NHANVIEN WHERE MANV = 'NV001'
+PRINT 'Public Key for NV001: ' + COALESCE(LEFT(@PubKeyInfo, 50) + '...', 'NULL')
 
+-- Test authentication
 EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12'
 
-
+-- Initialize remaining test data
 EXEC SP_INS_LOP 'L001', N'Công nghệ thông tin K42', 'NV001';
 EXEC SP_INS_LOP 'L002', N'Khoa học máy tính K42', 'NV001';
 EXEC SP_INS_LOP 'L003', N'Kỹ thuật phần mềm K42', 'NV001';
