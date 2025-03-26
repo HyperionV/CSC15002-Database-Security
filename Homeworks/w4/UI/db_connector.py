@@ -561,11 +561,8 @@ class DatabaseConnector:
         try:
             logger.info(f"Adding grade for student {masv}, course {mahp}")
 
-            # Use direct query with binary parameter
-            query = """
-            INSERT INTO BANGDIEM (MASV, MAHP, DIEMTHI)
-            VALUES (?, ?, ?)
-            """
+            # Use stored procedure instead of direct query
+            query = "EXEC SP_INS_ENCRYPTED_BANGDIEM ?, ?, ?"
 
             # Execute the query
             self.execute_query(query, (masv, mahp, pyodbc.Binary(diemthi)))
@@ -594,15 +591,11 @@ class DatabaseConnector:
         try:
             logger.info(f"Updating grade for student {masv}, course {mahp}")
 
-            # Use direct query with binary parameter
-            query = """
-            UPDATE BANGDIEM
-            SET DIEMTHI = ?
-            WHERE MASV = ? AND MAHP = ?
-            """
+            # Use stored procedure instead of direct query
+            query = "EXEC SP_UPD_ENCRYPTED_BANGDIEM ?, ?, ?"
 
             # Execute the query
-            self.execute_query(query, (pyodbc.Binary(diemthi), masv, mahp))
+            self.execute_query(query, (masv, mahp, pyodbc.Binary(diemthi)))
 
             logger.info(
                 f"Successfully updated grade for student {masv}, course {mahp}")
@@ -869,17 +862,12 @@ class DatabaseConnector:
             # Convert base64 string to binary for SQL
             binary_grade = base64.b64decode(encrypted_grade)
 
-            # Convert to hexadecimal for SQL parameter
-            hex_grade = '0x' + binary_grade.hex()
-
-            # Use direct query with binary parameter
-            query = """
-            INSERT INTO BANGDIEM (MASV, MAHP, DIEMTHI)
-            VALUES (?, ?, {})
-            """.format(hex_grade)
+            # Use stored procedure instead of direct query
+            query = "EXEC SP_INS_ENCRYPTED_BANGDIEM ?, ?, ?"
 
             # Execute the query
-            self.execute_query(query, (masv, mahp))
+            self.execute_query(
+                query, (masv, mahp, pyodbc.Binary(binary_grade)))
 
             logger.info(
                 f"Added grade with client-side encryption for student {masv}, course {mahp}")
@@ -907,18 +895,12 @@ class DatabaseConnector:
             # Convert base64 string to binary for SQL
             binary_grade = base64.b64decode(encrypted_grade)
 
-            # Convert to hexadecimal for SQL parameter
-            hex_grade = '0x' + binary_grade.hex()
-
-            # Use direct query with binary parameter
-            query = """
-            UPDATE BANGDIEM
-            SET DIEMTHI = {}
-            WHERE MASV = ? AND MAHP = ?
-            """.format(hex_grade)
+            # Use stored procedure instead of direct query
+            query = "EXEC SP_UPD_ENCRYPTED_BANGDIEM ?, ?, ?"
 
             # Execute the query
-            self.execute_query(query, (masv, mahp))
+            self.execute_query(
+                query, (masv, mahp, pyodbc.Binary(binary_grade)))
 
             logger.info(
                 f"Updated grade with client-side encryption for student {masv}, course {mahp}")

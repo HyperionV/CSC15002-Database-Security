@@ -74,7 +74,7 @@ CREATE TABLE BANGDIEM (
 GO
 
 -- Stored Procedure để chèn dữ liệu vào bảng NHANVIEN
-CREATE OR ALTER PROCEDURE SP_INS_PUBLIC_NHANVIEN
+CREATE PROCEDURE SP_INS_PUBLIC_NHANVIEN
     @MANV VARCHAR(20),
     @HOTEN NVARCHAR(100),
     @EMAIL VARCHAR(20),
@@ -111,7 +111,7 @@ BEGIN
 END;
 GO
 
-CREATE OR ALTER PROCEDURE SP_SEL_PUBLIC_NHANVIEN
+CREATE PROCEDURE SP_SEL_PUBLIC_NHANVIEN
     @TENDN NVARCHAR(100),
     @MK NVARCHAR(50)
 AS
@@ -125,13 +125,10 @@ BEGIN
     WHERE TENDN = @TENDN 
       AND MATKHAU = HASHBYTES('SHA1', @MK);
     
-    -- If employee found, proceed with decryption
     IF @EmpManv IS NOT NULL
     BEGIN
-        -- Get key ID directly
         DECLARE @KeyID INT = ASYMKEY_ID(@EmpManv);
         
-        -- Get employee info with decrypted salary
         SELECT 
             MANV,
             HOTEN,
@@ -154,12 +151,9 @@ GO
 USE QLSVNhom;
 GO
 
--- =============================================
--- STORED PROCEDURES FOR CLASS MANAGEMENT
--- =============================================
 
 -- Procedure to add a new class
-CREATE OR ALTER PROCEDURE SP_INS_LOP
+CREATE PROCEDURE SP_INS_LOP
     @MALOP VARCHAR(20),
     @TENLOP NVARCHAR(100),
     @MANV VARCHAR(20)
@@ -173,7 +167,7 @@ END;
 GO
 
 -- Procedure to update class information
-CREATE OR ALTER PROCEDURE SP_UPD_LOP
+CREATE PROCEDURE SP_UPD_LOP
     @MALOP VARCHAR(20),
     @TENLOP NVARCHAR(100),
     @MANV VARCHAR(20)
@@ -189,7 +183,7 @@ END;
 GO
 
 -- Procedure to delete a class
-CREATE OR ALTER PROCEDURE SP_DEL_LOP
+CREATE PROCEDURE SP_DEL_LOP
     @MALOP VARCHAR(20)
 AS
 BEGIN
@@ -201,7 +195,7 @@ END;
 GO
 
 -- Procedure to get all classes
-CREATE OR ALTER PROCEDURE SP_SEL_LOP
+CREATE PROCEDURE SP_SEL_LOP
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -213,7 +207,7 @@ END;
 GO
 
 -- Procedure to get classes managed by a specific employee
-CREATE OR ALTER PROCEDURE SP_SEL_LOP_BY_MANV
+CREATE PROCEDURE SP_SEL_LOP_BY_MANV
     @MANV VARCHAR(20)
 AS
 BEGIN
@@ -227,7 +221,7 @@ END;
 GO
 
 -- Procedure to check if an employee manages a specific class
-CREATE OR ALTER PROCEDURE SP_CHECK_EMPLOYEE_MANAGES_CLASS
+CREATE PROCEDURE SP_CHECK_EMPLOYEE_MANAGES_CLASS
     @MANV VARCHAR(20),
     @MALOP VARCHAR(20),
     @IS_MANAGER BIT OUTPUT
@@ -242,12 +236,8 @@ BEGIN
 END;
 GO
 
--- =============================================
--- STORED PROCEDURES FOR STUDENT MANAGEMENT
--- =============================================
-
 -- Procedure to add a new student
-CREATE OR ALTER PROCEDURE SP_INS_SINHVIEN
+CREATE PROCEDURE SP_INS_SINHVIEN
     @MASV VARCHAR(20),
     @HOTEN NVARCHAR(100),
     @NGAYSINH DATETIME,
@@ -270,7 +260,7 @@ END;
 GO
 
 -- Procedure to update student information
-CREATE OR ALTER PROCEDURE SP_UPD_SINHVIEN
+CREATE PROCEDURE SP_UPD_SINHVIEN
     @MASV VARCHAR(20),
     @HOTEN NVARCHAR(100),
     @NGAYSINH DATETIME,
@@ -290,7 +280,7 @@ END;
 GO
 
 -- Procedure to delete a student
-CREATE OR ALTER PROCEDURE SP_DEL_SINHVIEN
+CREATE PROCEDURE SP_DEL_SINHVIEN
     @MASV VARCHAR(20)
 AS
 BEGIN
@@ -302,7 +292,7 @@ END;
 GO
 
 -- Procedure to get students by class
-CREATE OR ALTER PROCEDURE SP_SEL_SINHVIEN_BY_MALOP
+CREATE PROCEDURE SP_SEL_SINHVIEN_BY_MALOP
     @MALOP VARCHAR(20)
 AS
 BEGIN
@@ -315,7 +305,7 @@ END;
 GO
 
 -- Procedure to get a student by ID
-CREATE OR ALTER PROCEDURE SP_SEL_SINHVIEN_BY_ID
+CREATE PROCEDURE SP_SEL_SINHVIEN_BY_ID
     @MASV VARCHAR(20)
 AS
 BEGIN
@@ -328,7 +318,7 @@ END;
 GO
 
 -- Procedure to authenticate a student
-CREATE OR ALTER PROCEDURE SP_SEL_SINHVIEN_AUTH
+CREATE PROCEDURE SP_SEL_SINHVIEN_AUTH
     @TENDN NVARCHAR(100),
     @MK NVARCHAR(100)
 AS
@@ -342,25 +332,19 @@ BEGIN
 END;
 GO
 
--- =============================================
--- STORED PROCEDURES FOR GRADE MANAGEMENT
--- =============================================
-
--- Procedure to insert a grade with encryption using employee's public key
-CREATE OR ALTER PROCEDURE SP_INS_BANGDIEM
+CREATE PROCEDURE SP_INS_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
     @DIEMTHI FLOAT,
-    @MANV VARCHAR(20) -- Employee ID for key lookup
+    @MANV VARCHAR(20)
 AS
 BEGIN
     SET NOCOUNT ON;
     
     DECLARE @DIEMTHI_ENCRYPTED VARBINARY(MAX);
     
-    -- Encrypt the grade using the employee's public key
     SET @DIEMTHI_ENCRYPTED = ENCRYPTBYASYMKEY(
-        ASYMKEY_ID(@MANV), -- Get key ID from employee ID
+        ASYMKEY_ID(@MANV), 
         CONVERT(VARCHAR(20), @DIEMTHI)
     );
     
@@ -369,20 +353,19 @@ BEGIN
 END;
 GO
 
-CREATE OR ALTER PROCEDURE SP_UPD_BANGDIEM
+CREATE PROCEDURE SP_UPD_BANGDIEM
     @MASV VARCHAR(20),
     @MAHP VARCHAR(20),
     @DIEMTHI FLOAT,
-    @MANV VARCHAR(20) -- Employee ID for key lookup
+    @MANV VARCHAR(20)
 AS
 BEGIN
     SET NOCOUNT ON;
     
     DECLARE @DIEMTHI_ENCRYPTED VARBINARY(MAX);
     
-    -- Encrypt the grade using the employee's public key
     SET @DIEMTHI_ENCRYPTED = ENCRYPTBYASYMKEY(
-        ASYMKEY_ID(@MANV), -- Get key ID from employee ID
+        ASYMKEY_ID(@MANV), 
         CONVERT(VARCHAR(20), @DIEMTHI)
     );
     
@@ -392,8 +375,7 @@ BEGIN
 END;
 GO
 
--- Modify the SP_SEL_BANGDIEM_BY_MASV procedure to use the correct key for each grade
-CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MASV
+CREATE PROCEDURE SP_SEL_BANGDIEM_BY_MASV
     @MASV VARCHAR(20),
     @MANV VARCHAR(20),
     @MK NVARCHAR(50)
@@ -401,7 +383,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Get the student's class and the employee who manages that class
     DECLARE @StudentClass VARCHAR(20);
     DECLARE @StudentClassManager VARCHAR(20);
     
@@ -413,13 +394,12 @@ BEGIN
     FROM LOP L
     WHERE L.MALOP = @StudentClass;
 
-    -- Return grade data with raw encrypted DIEMTHI
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        BD.DIEMTHI,  -- Return raw encrypted grade
+        BD.DIEMTHI,  
         @StudentClassManager AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
@@ -428,8 +408,7 @@ BEGIN
 END;
 GO
 
--- Modify the SP_SEL_BANGDIEM_BY_MAHP procedure to determine the encrypting employee based on class relationships
-CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MAHP
+CREATE PROCEDURE SP_SEL_BANGDIEM_BY_MAHP
     @MAHP VARCHAR(20),
     @MANV VARCHAR(20),
     @MK NVARCHAR(50)
@@ -437,13 +416,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Return grade data with raw encrypted DIEMTHI
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        BD.DIEMTHI,  -- Return raw encrypted grade
+        BD.DIEMTHI,  
         L.MANV AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
@@ -453,8 +431,7 @@ BEGIN
 END;
 GO
 
--- Modify the SP_SEL_BANGDIEM_BY_MALOP procedure to determine the encrypting employee based on class relationships
-CREATE OR ALTER PROCEDURE SP_SEL_BANGDIEM_BY_MALOP
+CREATE PROCEDURE SP_SEL_BANGDIEM_BY_MALOP
     @MALOP VARCHAR(20),
     @MANV VARCHAR(20),
     @MK NVARCHAR(50)
@@ -462,17 +439,15 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Get the employee who manages this class
     DECLARE @ClassManager VARCHAR(20);
     SELECT @ClassManager = MANV FROM LOP WHERE MALOP = @MALOP;
     
-    -- Return grade data with raw encrypted DIEMTHI
     SELECT 
         BD.MASV,
         S.HOTEN AS TENSV,
         BD.MAHP,
         HP.TENHP,
-        BD.DIEMTHI,  -- Return raw encrypted grade
+        BD.DIEMTHI,  
         @ClassManager AS ENCRYPTED_BY
     FROM BANGDIEM BD
     JOIN SINHVIEN S ON BD.MASV = S.MASV
@@ -482,7 +457,7 @@ END;
 GO
 
 -- Check if an employee exists
-CREATE OR ALTER PROC SP_CHECK_EMPLOYEE @MANV VARCHAR(20), @RESULT BIT OUTPUT
+CREATE PROCEDURE SP_CHECK_EMPLOYEE @MANV VARCHAR(20), @RESULT BIT OUTPUT
 AS
 BEGIN
     IF EXISTS (SELECT 1 FROM NHANVIEN WHERE MANV = @MANV)
@@ -493,7 +468,7 @@ END
 GO
 
 -- Check if a class exists
-CREATE OR ALTER PROC SP_CHECK_CLASS_EXISTS @MALOP VARCHAR(20), @RESULT BIT OUTPUT
+CREATE PROCEDURE SP_CHECK_CLASS_EXISTS @MALOP VARCHAR(20), @RESULT BIT OUTPUT
 AS
 BEGIN
     IF EXISTS (SELECT 1 FROM LOP WHERE MALOP = @MALOP)
@@ -504,7 +479,7 @@ END
 GO
 
 -- Check if a class is managed by a specific employee
-CREATE OR ALTER PROC SP_CHECK_CLASS_MANAGED_BY_EMPLOYEE @MALOP VARCHAR(20), @MANV VARCHAR(20), @RESULT BIT OUTPUT
+CREATE PROCEDURE SP_CHECK_CLASS_MANAGED_BY_EMPLOYEE @MALOP VARCHAR(20), @MANV VARCHAR(20), @RESULT BIT OUTPUT
 AS
 BEGIN
     IF EXISTS (SELECT 1 FROM LOP WHERE MALOP = @MALOP AND MANV = @MANV)
@@ -515,7 +490,7 @@ END
 GO 
 
 -- Add a procedure to insert a course
-CREATE OR ALTER PROCEDURE SP_INS_HOCPHAN
+CREATE PROCEDURE SP_INS_HOCPHAN
     @MAHP VARCHAR(20),
     @TENHP NVARCHAR(100),
     @SOTC INT
@@ -528,45 +503,70 @@ BEGIN
 END;
 GO
 
--- Stored procedure thêm nhân viên vào bảng NHANVIEN
+-- Lab04
 
-CREATE OR ALTER PROCEDURE SP_INS_PUBLIC_ENCRYPT_NHANVIEN
+CREATE PROCEDURE SP_INS_PUBLIC_ENCRYPT_NHANVIEN
     @MANV VARCHAR(20),
     @HOTEN NVARCHAR(100),
     @EMAIL VARCHAR(20),
-    @LUONG VARBINARY(MAX), -- LUONG đã được mã hóa RSA từ client
+    @LUONG VARBINARY(MAX), 
     @TENDN NVARCHAR(100),
-    @MK VARBINARY(MAX),    -- MK đã được mã hóa SHA1 từ client
-    @PUB VARCHAR(MAX)      -- Khóa công khai được tạo từ client
+    @MK VARBINARY(MAX),    
+    @PUB VARCHAR(MAX)      
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Insert the pre-encrypted data directly
     INSERT INTO NHANVIEN (MANV, HOTEN, EMAIL, LUONG, TENDN, MATKHAU, PUBKEY)
     VALUES (@MANV, @HOTEN, @EMAIL, @LUONG, @TENDN, @MK, @PUB);
 END;
 GO
 
--- Stored procedure truy vấn dữ liệu nhân viên 
-
-CREATE OR ALTER PROCEDURE SP_SEL_PUBLIC_ENCRYPT_NHANVIEN
+CREATE PROCEDURE SP_SEL_PUBLIC_ENCRYPT_NHANVIEN
     @TENDN NVARCHAR(100),
-    @MK VARBINARY(MAX)    -- Password already hashed with SHA1 from client
+    @MK VARBINARY(MAX)    
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Return employee data with encrypted LUONG and PUBKEY
     SELECT 
         MANV,
         HOTEN,
         EMAIL,
-        LUONG,  -- Return encrypted LUONG for client-side decryption
-        PUBKEY  -- Return the public key for potential use
+        LUONG,  
+        PUBKEY 
     FROM NHANVIEN
     WHERE TENDN = @TENDN
       AND MATKHAU = @MK;
+END;
+GO
+
+-- New stored procedure for updating grades with pre-encrypted data
+CREATE PROCEDURE SP_UPD_ENCRYPTED_BANGDIEM
+    @MASV VARCHAR(20),
+    @MAHP VARCHAR(20),
+    @DIEMTHI_ENCRYPTED VARBINARY(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    UPDATE BANGDIEM
+    SET DIEMTHI = @DIEMTHI_ENCRYPTED
+    WHERE MASV = @MASV AND MAHP = @MAHP;
+END;
+GO
+
+-- New stored procedure for inserting grades with pre-encrypted data
+CREATE PROCEDURE SP_INS_ENCRYPTED_BANGDIEM
+    @MASV VARCHAR(20),
+    @MAHP VARCHAR(20),
+    @DIEMTHI_ENCRYPTED VARBINARY(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    INSERT INTO BANGDIEM (MASV, MAHP, DIEMTHI)
+    VALUES (@MASV, @MAHP, @DIEMTHI_ENCRYPTED);
 END;
 GO
 
@@ -574,19 +574,12 @@ GO
 -- Test data    
 -- ==============================   
 
--- Make sure to drop any existing test data or SQL server asymmetric keys
 IF EXISTS (SELECT * FROM sys.asymmetric_keys WHERE name = 'NV001')
     DROP ASYMMETRIC KEY [NV001]
 GO
-
 -- Initialize NV001 employee with both public and private key using original method
 EXEC SP_INS_PUBLIC_NHANVIEN 'NV001', 'NGUYEN VAN A',
 'NVA@', 3000000, 'NVA', 'abcd12'
-
--- After insertion, get the key to see what's stored
-DECLARE @PubKeyInfo VARCHAR(MAX)
-SELECT @PubKeyInfo = PUBKEY FROM NHANVIEN WHERE MANV = 'NV001'
-PRINT 'Public Key for NV001: ' + COALESCE(LEFT(@PubKeyInfo, 50) + '...', 'NULL')
 
 -- Test authentication
 EXEC SP_SEL_PUBLIC_NHANVIEN 'NVA', 'abcd12'
@@ -612,8 +605,7 @@ EXEC SP_INS_HOCPHAN 'HP003', N'An toàn mạng', 3;
 EXEC SP_INS_HOCPHAN 'HP004', N'Trí tuệ nhân tạo', 4;
 EXEC SP_INS_HOCPHAN 'HP005', N'Phân tích thiết kế hệ thống', 3;
 
--- Insert test data into BANGDIEM (5 rows)
--- Using the employee's key to encrypt grades
+
 EXEC SP_INS_BANGDIEM 'SV001', 'HP001', 8.5, 'NV001';
 EXEC SP_INS_BANGDIEM 'SV002', 'HP001', 7.5, 'NV001';
 EXEC SP_INS_BANGDIEM 'SV003', 'HP002', 9.0, 'NV001';
